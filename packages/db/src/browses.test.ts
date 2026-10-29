@@ -41,7 +41,7 @@ test('browse selects joined new replies and a missed post from newest 20, then t
   const context=store.getContext(first);assert.equal(context.comments.length,2);assert.equal(context.post,'Post 24');assert.equal(context.browseReason,'new_reply');
   assert.ok(context.images.some(image=>image.id===replyImage.id));
   assert.deepEqual((context.comments[1] as any).images,[{id:replyImage.id,description:'A market stall'}]);
-  store.completeJob(first,{like:true,comment:'I will stop here',memory:null,follow:false});
+  assert.equal(store.completeJob(first,{like:true,comment:'I will stop here',memory:null,follow:false}),'liked_and_commented');
   const firstVisit=store.getActivityPage().items.find((item:any)=>item.id===first.id) as any;
   assert.equal(firstVisit.followState,0);assert.equal(firstVisit.outcome,'liked_and_commented');
   const reply=db.prepare("SELECT parent_id AS parentId FROM comments WHERE text='I will stop here'").get() as any;
@@ -65,8 +65,8 @@ test('browse selects joined new replies and a missed post from newest 20, then t
   db.prepare("UPDATE jobs SET due_at=9999999999999 WHERE source='browse' AND status='pending' AND id<>?").run(revisit.id);
   db.prepare('UPDATE jobs SET due_at=0 WHERE id=?').run(revisit.id);
   const revisitJob=store.claimJob();assert.ok(revisitJob);assert.equal(revisitJob.id,revisit.id);
-  store.completeJob(revisitJob,{like:true,comment:'A new reply to new content',memory:null,follow:true});
-  store.completeJob(revisitJob,{like:true,comment:'A new reply to new content',memory:null,follow:true});
+  assert.equal(store.completeJob(revisitJob,{like:true,comment:'A new reply to new content',memory:null,follow:true}),'commented');
+  assert.equal(store.completeJob(revisitJob,{like:true,comment:'A new reply to new content',memory:null,follow:true}),null);
   assert.equal((db.prepare("SELECT COUNT(*) AS count FROM likes WHERE post_id=24 AND agent_id='one'").get() as any).count,1);
   assert.equal((db.prepare('SELECT outcome FROM jobs WHERE id=?').get(revisit.id) as any).outcome,'commented');
   assert.equal((db.prepare("SELECT COUNT(*) AS count FROM comments WHERE text='A new reply to new content'").get() as any).count,1);

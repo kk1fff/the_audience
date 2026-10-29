@@ -173,7 +173,7 @@ export function getContext(job: Job) {
   const reply=job.sourceCommentId ? getDb().prepare(`SELECT c.text,p.agent_id AS parentAgentId,a.name AS parentAgentName FROM comments c LEFT JOIN comments p ON p.id=c.parent_id LEFT JOIN agents a ON a.id=p.agent_id WHERE c.id=?`).get(job.sourceCommentId) as {text:string;parentAgentId:string|null;parentAgentName:string|null}|undefined : undefined;
   return { agent, memory: memory?.content || '', post: post?.text || '', comments, sourceCommentId: job.sourceCommentId, mentionedHandle:job.mentionedHandle, mentionText:job.kind==='post'?post?.text||'':reply?.text||'',replyToAgentName:reply?.parentAgentName||null,replyToOwnComment:reply?.parentAgentId===job.agentId,browseReason:job.browseReason, images: [...getImagesForPost(job.postId), ...(job.source==='browse'?commentImages.map(entry=>entry.image):job.sourceCommentId ? getImagesForComment(job.sourceCommentId) : [])] };
 }
-export function completeJob(job: Job, decision: Decision | null, forcedOutcome?: 'missed') { transaction(() => {
+export function completeJob(job: Job, decision: Decision | null, forcedOutcome?: 'missed') { return transaction(() => {
   const current = getDb().prepare('SELECT status FROM jobs WHERE id=?').get(job.id) as any;
   if (current?.status !== 'running') return null;
   const oldMemory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any)?.content||'';
