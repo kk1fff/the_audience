@@ -50,3 +50,39 @@
   .left nav .navIcon{font-size:18px}
   .owner{flex:none}
 }
+
+.browseSchedule{background:#fff;border:1px solid #e5e5e5;border-radius:15px;padding:18px 20px;margin:18px 0 28px!important}
+.activityPage .browseSchedule h2{border:0;padding:0;margin:0 0 5px;font-size:19px}
+.browseSchedule>p{font-size:13px;color:#68717d;margin:0 0 16px}
+.browseScheduleFull{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px 12px}
+.browseScheduleRow{min-width:0;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.browseWhen{display:flex;flex-direction:column;gap:2px;min-width:0}
+.browseWhen strong{color:#6750b5;font-size:15px}
+.browseWhen small{color:#68717d;font-size:11px;overflow-wrap:anywhere}
+.browseScheduleCompact{display:none}
+.browseVisit{border-color:#d5eadf;background:#fbfffc}
+.activityTop .browseVisitLabel,.recentBrowse .browseVisitLabel{display:inline-block;border-radius:12px;padding:3px 8px;background:#e8f6ee;color:#28784d;font-size:13px;font-weight:700}
+.browseFollow{font-size:13px;font-weight:700;color:#68717d;margin:7px 0 3px;overflow-wrap:anywhere}
+.browseFollow.isFollowing{color:#28784d}
+.browseVisit .activityTiming{overflow-wrap:anywhere}
+.recentBrowseList{display:grid;gap:10px}
+.recentBrowse{background:#fff;border:1px solid #e5e5e5;border-radius:15px;padding:16px 20px;min-width:0}
+.recentBrowse>div{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.recentBrowse p{font-size:15px;font-weight:700;margin:12px 0 6px}
+.recentBrowse small{display:block;color:#68717d;font-size:12px;margin-top:4px;overflow-wrap:anywhere}
+@media (max-width:650px){
+  .browseSchedule{padding:16px 15px;margin-top:18px!important}
+  .activityPage .browseSchedule h2{font-size:17px}
+  .browseSchedule>p{font-size:12px}
+  .browseScheduleFull{display:none}
+  .browseScheduleCompact{display:block}
+  .browseScheduleRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:8px;padding:9px 0;border-top:1px solid #f0eef3;align-items:start}
+  .browseWhen strong{font-size:14px}
+  .browseScheduleCompact details{border-top:1px solid #f0eef3}
+  .browseScheduleCompact summary{color:#6750b5;font-size:13px;font-weight:700;cursor:pointer;list-style:none;padding:12px 0 2px}
+  .browseScheduleCompact summary::-webkit-details-marker{display:none}
+  .browseScheduleCompact summary:focus-visible{outline:2px solid #4f399f;outline-offset:3px;border-radius:3px}
+  .browseHide,.browseScheduleCompact details[open] .browseShow{display:none}
+  .browseScheduleCompact details[open] .browseHide{display:inline}
+  .recentBrowse{padding:14px 15px}
+}

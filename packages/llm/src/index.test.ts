@@ -37,3 +37,13 @@ test('mention prompt identifies the mentioned message and the reply recipient',(
   assert.match(post,/in this post/);
   assert.doesNotMatch(post,/You were notified/);
 });
+test('browse prompt distinguishes a joined thread from a missed post',()=>{
+  const base={agent:{id:'mira',name:'Mira',persona:'Thoughtful'},memory:'',post:'A post',comments:[{id:4,text:'New reply'}],sourceCommentId:4,images:[],browseReason:'new_reply'};
+  const joined=buildMessages(base,'post','browse').user;
+  assert.match(joined,/browsing a conversation you joined/);
+  assert.match(joined,/Target comment ID: 4/);
+  assert.match(joined,/New reply/);
+  const missed=buildMessages({...base,browseReason:'missed_post',sourceCommentId:null},'post','browse').user;
+  assert.match(missed,/post you previously missed/);
+  assert.doesNotMatch(missed,/You were notified/);
+});
