@@ -18,3 +18,17 @@ test('completed reactions lead by activity time while no-action records stay cou
   assert.deepEqual([...result.counts], [['pending',1],['missed',1],['not selected',1]]);
   assert.equal(result.reactions[0].source, 'feed');
 });
+
+test('unresolved mentions stay visible while ordinary misses remain grouped', () => {
+  const items = [
+    {id:1,source:'notification',status:'done',outcome:'missed',completedAt:10,discoveredAt:null,dueAt:1},
+    {id:2,source:'mention',status:'pending',outcome:null,completedAt:null,discoveredAt:null,dueAt:30},
+    {id:3,source:'mention',status:'done',outcome:'ignored',completedAt:20,discoveredAt:null,dueAt:2},
+    {id:4,source:'mention',status:'done',outcome:'commented',completedAt:40,discoveredAt:null,dueAt:3},
+  ];
+  const result=organizePostActivity(items);
+  assert.deepEqual(result.reactions.map(item=>item.id),[4]);
+  assert.deepEqual(result.mentions.map(item=>item.id),[2,3]);
+  assert.deepEqual(result.other.map(item=>item.id),[1]);
+  assert.deepEqual([...result.counts],[['missed',1]]);
+});

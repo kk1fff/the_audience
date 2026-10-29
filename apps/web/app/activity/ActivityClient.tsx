@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { organizePostActivity } from '../../lib/activity';
 
 type Attempt = {id:number;status:string;error:string|null;systemText:string|null;userText:string|null;legacyPromptText:string|null;provider:string|null;model:string|null;modelResponse:string|null;memoryBefore:string|null;memoryAfter:string|null;memoryEvaluation:string|null;imageIds:string[];images:{id:string;description:string|null;context:'post'|'reply'}[];startedAt:number;finishedAt:number|null};
-type Item = {id:number;kind:'post'|'reply';source:'notification'|'feed';discoveredAt:number|null;postId:number;postText:string|null;postImageId:string|null;postImageDescription:string|null;sourceCommentId:number|null;agentName:string;agentId:string;status:string;outcome:string|null;dueAt:number;completedAt:number|null;error:string|null;memoryBefore:string|null;memoryAfter:string|null;attemptHistory:Attempt[]};
+type Item = {id:number;kind:'post'|'reply';source:'notification'|'feed'|'mention';mentionedHandle:string|null;replyToAgentName:string|null;discoveredAt:number|null;postId:number;postText:string|null;postImageId:string|null;postImageDescription:string|null;sourceCommentId:number|null;agentName:string;agentId:string;status:string;outcome:string|null;dueAt:number;completedAt:number|null;error:string|null;memoryBefore:string|null;memoryAfter:string|null;attemptHistory:Attempt[]};
 type ActivityPage = {items:Item[];nextCursor:number|null;cursors:(number|null)[]};
 type PageRequest = {cursor:number|null;direction:'initial'|'next'|'previous';id:number};
 
@@ -32,20 +32,27 @@ function PostPreview({postId,postText,postImageId,postImageDescription,href}:{po
 
 function Entry({item,conversation}:{item:Item;conversation:string|null}) {
   const feedCheck = item.source === 'feed';
-  const source = feedCheck ? 'Feed check' : item.kind === 'reply' ? 'Reply notification' : 'Post notification';
+  const mention = item.source === 'mention';
+  const source = mention ? 'Mention' : feedCheck ? 'Feed check' : item.kind === 'reply' ? 'Reply notification' : 'Post notification';
+  const mentionState = item.status === 'done' && item.outcome === 'ignored' ? 'Ignored' : item.status === 'done' ? 'Responded' : item.error ? 'Retrying' : 'Pending';
   const outcome = label(item.outcome || item.status);
-  const timing = feedCheck
+  const timing = mention
+    ? `${item.kind==='post'?'Mentioned in your post':`In your reply to ${item.replyToAgentName||'a friend'}`} · @${item.mentionedHandle||item.agentId}`
+    : feedCheck
     ? `Found post at ${new Date(item.discoveredAt ?? item.dueAt).toLocaleString()}`
     : item.status === 'not_selected'
       ? 'No notification sent · post remains eligible for a feed check'
       : `${item.kind === 'reply' ? `Owner reply #${item.sourceCommentId} · ` : ''}Notification at ${new Date(item.dueAt).toLocaleString()}`;
-  return <article className="activityItem">
-    <div className="activityTop"><strong>{item.agentName}</strong><span className={feedCheck ? 'feedCheckLabel' : 'notificationLabel'}>{source}</span></div>
-    <p className="activityOutcome">{outcome}</p>
+  return <article className={`activityItem${mention?' mentionItem':''}`}>
+    <div className="activityTop"><strong>{item.agentName}</strong><span className={mention?'mentionLabel':feedCheck ? 'feedCheckLabel' : 'notificationLabel'}>{source}</span></div>
+    <p className="activityOutcome" aria-live={mention?'polite':undefined}>{mention?<><span className={`mentionState mention${mentionState}`}>{mentionState}</span>{mentionState==='Responded'&&<> · {outcome}</>}</>:outcome}</p>
     <p className="activityTiming">{timing}</p>
-    {conversation&&<Link className="conversationLink" href={conversation}>Open conversation →</Link>}
-    {item.error && <p className="error">{item.error}</p>}
-    {item.attemptHistory.length === 0 && <p className="noAttempt">No model request or memory evaluation.</p>}
+    {mention&&mentionState==='Pending'&&<p className="activityTiming">Queued at {new Date(item.dueAt).toLocaleString()} · waiting for decision</p>}
+    {mention&&mentionState==='Retrying'&&<p className="activityTiming">{item.error} · {item.status==='pending'?`next retry ${new Date(item.dueAt).toLocaleString()}`:'retry in progress'}</p>}
+    {mention&&mentionState==='Ignored'&&<p className="activityTiming">Delivered · chose not to respond</p>}
+    {conversation&&<Link className="conversationLink" href={conversation}>{mention&&item.kind==='reply'?'Open your reply':'Open conversation'} →</Link>}
+    {item.error && !mention && <p className="error">{item.error}</p>}
+    {item.attemptHistory.length === 0 && !mention && <p className="noAttempt">No model request or memory evaluation.</p>}
     {item.attemptHistory.map((attempt, index) => <details className="activityDetails" key={attempt.id}>
       <summary>{item.attemptHistory.length === 1 && attempt.systemText ? 'View model request and memory' : `Attempt ${index + 1}: ${label(attempt.status)}`}</summary>
       {attempt.error && <p className="error">{attempt.error}</p>}
@@ -126,8 +133,8 @@ export default function Activity({initialCursorIds}:{initialCursorIds:number[]})
   const errorTitle = !page ? 'Couldn’t load activity' : request?.direction === 'next' ? 'Couldn’t load older posts' : request?.direction === 'previous' ? 'Couldn’t load newer posts' : 'Couldn’t load activity';
   return <div className="activityPage"><div className="activityHeader"><Link href="/">← The Audience</Link><h1>Agent activity</h1><p>How friends found posts and reacted.</p></div>{error&&<div className="activityLoadError" role="alert"><div><strong>{errorTitle}</strong><p>{page?'This page is still here. Try again when you’re ready.':'Check your connection and try again.'}</p>{!page&&<small>Your posts are still available from Home.</small>}</div><button onClick={retry}>Retry</button></div>}{loading&&!page&&<p>Loading activity…</p>}{page&&items.length === 0 && <p>No activity yet.</p>}{page&&groups.map(postId => {
     const postItems = items.filter(item => item.postId === postId);
-    const {reactions,other,counts} = organizePostActivity(postItems);
+    const {reactions,mentions,other,counts} = organizePostActivity(postItems);
     const available=postItems[0].postText!==null;
-    return <section key={postId}><PostPreview postId={postId} postText={postItems[0].postText} postImageId={postItems[0].postImageId} postImageDescription={postItems[0].postImageDescription} href={available?conversationHref(postId,cursors):null}/>{reactions.map(item => <Entry key={item.id} item={item} conversation={available?conversationHref(postId,cursors,item.kind==='reply'?item.sourceCommentId:null):null}/>)}{other.length > 0 && <details className="otherActivity"><summary><strong>Other activity</strong><span className="otherCounts">{otherCounts(counts)}</span><span className="showEntries">Show {other.length} {other.length === 1 ? 'entry' : 'entries'} ▾</span><span className="hideEntries">Hide {other.length} {other.length === 1 ? 'entry' : 'entries'} ▴</span></summary><div className="otherEntries">{other.map(item => <Entry key={item.id} item={item} conversation={available?conversationHref(postId,cursors,item.kind==='reply'?item.sourceCommentId:null):null}/>)}</div></details>}</section>;
+    return <section key={postId}><PostPreview postId={postId} postText={postItems[0].postText} postImageId={postItems[0].postImageId} postImageDescription={postItems[0].postImageDescription} href={available?conversationHref(postId,cursors):null}/>{reactions.map(item => <Entry key={item.id} item={item} conversation={available?conversationHref(postId,cursors,item.kind==='reply'?item.sourceCommentId:null):null}/>)}{mentions.map(item => <Entry key={item.id} item={item} conversation={available?conversationHref(postId,cursors,item.kind==='reply'?item.sourceCommentId:null):null}/>)}{other.length > 0 && <details className="otherActivity"><summary><strong>Other activity</strong><span className="otherCounts">{otherCounts(counts)}</span><span className="showEntries">Show {other.length} {other.length === 1 ? 'entry' : 'entries'} ▾</span><span className="hideEntries">Hide {other.length} {other.length === 1 ? 'entry' : 'entries'} ▴</span></summary><div className="otherEntries">{other.map(item => <Entry key={item.id} item={item} conversation={available?conversationHref(postId,cursors,item.kind==='reply'?item.sourceCommentId:null):null}/>)}</div></details>}</section>;
   })}{page&&<nav className="activityPagination" aria-label="Activity pages"><p>{cursors.length === 1 ? 'Showing newest posts' : 'Showing older posts'}</p><div className="pages"><button disabled={loading || cursors.length === 1} onClick={() => navigate('previous')}>← Previous</button><button disabled={loading || nextCursor === null} onClick={() => navigate('next')}>Next →</button></div><p className="paginationHint">{cursors.length === 1 ? 'Next shows older posts.' : 'Previous returns to newer posts. Next shows older posts.'}</p></nav>}</div>;
 }

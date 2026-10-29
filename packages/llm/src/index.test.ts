@@ -23,3 +23,17 @@ test('post prompt describes how the agent found the post',()=>{
   assert.match(feedCheck,/You found this post while checking the feed/);
   assert.doesNotMatch(feedCheck,/You were notified/);
 });
+test('mention prompt identifies the mentioned message and the reply recipient',()=>{
+  const base={agent:{id:'aya',name:'Aya',persona:'Curious'},memory:'',post:'A post',comments:[],sourceCommentId:42,images:[],mentionedHandle:'AYA',mentionText:'Thanks @AYA',replyToAgentName:'Mira',replyToOwnComment:false};
+  const inReply=buildMessages(base,'reply','mention').user;
+  assert.match(inReply,/mentioned you as @AYA/);
+  assert.match(inReply,/a reply to Mira/);
+  assert.match(inReply,/Mentioned message: Thanks @AYA/);
+  assert.match(inReply,/Target owner comment ID: 42/);
+  assert.doesNotMatch(inReply,/replied to your comment/);
+  const own=buildMessages({...base,replyToOwnComment:true},'reply','mention').user;
+  assert.match(own,/a reply to your comment/);
+  const post=buildMessages({...base,mentionText:'Hi @AYA'},'post','mention').user;
+  assert.match(post,/in this post/);
+  assert.doesNotMatch(post,/You were notified/);
+});
