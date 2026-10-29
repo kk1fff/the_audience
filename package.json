@@ -6,7 +6,7 @@
     "dev:web": "corepack pnpm --filter @social/web dev",
     "dev:worker": "corepack pnpm --filter @social/worker dev",
     "build": "corepack pnpm --filter @social/web build",
-    "test": "node --experimental-strip-types --test packages/core/src/*.test.ts packages/db/src/*.test.ts packages/llm/src/*.test.ts"
+    "test": "node --experimental-strip-types --test apps/web/lib/*.test.ts packages/core/src/*.test.ts packages/db/src/*.test.ts packages/llm/src/*.test.ts"
   },
   "workspaces": [
     "apps/*",
