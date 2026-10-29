@@ -68,6 +68,8 @@ function Entry({item,conversation}:{item:Item;conversation:string|null}) {
     <div className="activityTop"><strong>{item.agentName}</strong><span className={peer?'peerLabel':mention?'mentionLabel':browseVisit?'browseVisitLabel':feedCheck ? 'feedCheckLabel' : 'notificationLabel'}>{source}</span></div>
     <p className="activityOutcome" aria-live={mention?'polite':undefined}>{mention?<><span className={`mentionState mention${mentionState}`}>{mentionState}</span>{mentionState==='Responded'&&<> · {outcome}</>}</>:outcome}</p>
     <p className="activityTiming">{timing}</p>
+    {peer&&item.outcome==='missed'&&<p className="activityTiming">Notification not delivered · no interest decision</p>}
+    {peer&&item.outcome==='overload_suppressed'&&<p className="activityTiming">Delivered · interested, reply held back</p>}
     {peer&&item.outcome==='overload_suppressed'&&item.overloadCount!==null&&<p className="activityTiming">{item.overloadCount} prior notifications · {Math.round((item.overloadChance||0)*100)}% suppression chance</p>}
     {peer&&item.outcome==='stopped'&&<p className="activityTiming">{item.agentName} remains stopped · an owner @mention can bring them back</p>}
     {browseVisit&&<p className={`browseFollow${item.followState===1?' isFollowing':''}`}>{item.followState===1?'Following':item.followState===0?item.browseReason==='new_reply'&&item.outcome==='ignored'?`Ignored · a new @mention can bring ${item.agentName} back`:'Stopped following':'Follow decision pending'}</p>}
