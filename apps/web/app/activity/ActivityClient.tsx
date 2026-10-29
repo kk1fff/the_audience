@@ -2,12 +2,13 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { organizePostActivity } from '../../lib/activity';
+import { summarizeBrowseResult, type BrowseResult } from '../../lib/browse-results';
 
 type Attempt = {id:number;status:string;error:string|null;systemText:string|null;userText:string|null;legacyPromptText:string|null;provider:string|null;model:string|null;modelResponse:string|null;memoryBefore:string|null;memoryAfter:string|null;memoryEvaluation:string|null;imageIds:string[];images:{id:string;description:string|null;context:'post'|'reply'}[];startedAt:number;finishedAt:number|null};
 type Item = {id:number;kind:'post'|'reply';source:'notification'|'feed'|'mention'|'browse'|'peer';mentionedHandle:string|null;replyToAgentName:string|null;sourceAgentName:string|null;deliveredAt:number|null;overloadCount:number|null;overloadChance:number|null;discoveredAt:number|null;visitedAt:number|null;browseReason:string|null;followState:number|null;postId:number;postText:string|null;postImageId:string|null;postImageDescription:string|null;sourceCommentId:number|null;agentName:string;agentId:string;status:string;outcome:string|null;dueAt:number;completedAt:number|null;error:string|null;memoryBefore:string|null;memoryAfter:string|null;attemptHistory:Attempt[]};
 type BrowseScheduleItem={agentId:string;agentName:string;avatarColor:string;nextBrowseAt:number};
-type EmptyBrowse={id:number;agentId:string;agentName:string;completedAt:number};
-type ActivityPage = {items:Item[];nextCursor:number|null;cursors:(number|null)[];browseSchedule:BrowseScheduleItem[];recentEmptyBrowses:EmptyBrowse[]};
+type RecentBrowseResult=BrowseResult&{id:number;agentId:string;agentName:string;startedAt:number;completedAt:number|null};
+type ActivityPage = {items:Item[];nextCursor:number|null;cursors:(number|null)[];browseSchedule:BrowseScheduleItem[];recentBrowseResults:RecentBrowseResult[]};
 type PageRequest = {cursor:number|null;direction:'initial'|'next'|'previous';id:number};
 
 function conversationHref(postId:number,cursors:(number|null)[],commentId?:number|null) {
@@ -40,9 +41,18 @@ function BrowseSchedule({items,now}:{items:BrowseScheduleItem[];now:number}) {
   const row=(item:BrowseScheduleItem)=><div className="browseScheduleRow" key={item.agentId}><strong>{item.agentName}</strong><span className="browseWhen"><strong>{countdown(item.nextBrowseAt,now)}</strong><small>at {new Date(item.nextBrowseAt).toLocaleString()}</small></span></div>;
   return <section className="browseSchedule"><h2>Upcoming browses</h2><p>Next general browse for each enabled friend · times shown locally</p>{items.length===0?<p>No browse schedules yet.</p>:<><div className="browseScheduleFull">{items.map(row)}</div><div className="browseScheduleCompact">{items.slice(0,2).map(row)}{items.length>2&&<details><summary><span className="browseShow">Show all {items.length} agents ▾</span><span className="browseHide">Hide agents ▴</span></summary><div>{items.slice(2).map(row)}</div></details>}</div></>}</section>;
 }
-function RecentEmptyBrowses({items}:{items:EmptyBrowse[]}) {
-  if(!items.length) return null;
-  return <section className="recentBrowses"><h2>Recent browses</h2><div className="recentBrowseList">{items.map(item=><article key={item.id} className="recentBrowse"><div><strong>{item.agentName}</strong><span className="browseVisitLabel">General browse</span></div><p>No new content</p><small>Checked at {new Date(item.completedAt).toLocaleString()} · no threads to visit</small><small>Next browse remains scheduled above.</small></article>)}</div></section>;
+function RecentBrowseResults({items}:{items:RecentBrowseResult[]}) {
+  const visitLink=(item:RecentBrowseResult,visit:RecentBrowseResult['visits'][number])=>{
+    const excerpt=visit.postText.replace(/\s+/g,' ').trim();
+    const preview=excerpt||(visit.postImageId?'Photo post':'Post preview unavailable');
+    return <Link key={visit.postId} href={`/posts/${visit.postId}`} aria-label={`${item.agentName} completed browse visit to post ${visit.postId}: ${preview}`}>
+      Post #{visit.postId} · <span>{preview}</span> →
+    </Link>;
+  };
+  return <section className="recentBrowseResults"><h2>Recent browse results</h2><p>Newest first · independent of post pages</p>{items.length===0?<div className="browseResultsEmpty"><strong>No browse results yet</strong><p>Results will appear after a browse starts.</p></div>:<><div className="browseResultList">{items.map(item=>{
+    const result=summarizeBrowseResult(item);
+    return <article key={item.id} className="browseResult"><div className="browseResultHeader"><strong>{item.agentName}</strong><time dateTime={new Date(item.startedAt).toISOString()}>{new Date(item.startedAt).toLocaleString()}</time></div><div className="browseResultBody"><span className={`browseResultState ${result.state}`}>{result.label}</span><div><p>{result.summary}</p>{result.detail&&<small>{result.detail}</small>}{item.visits.length>0&&<div className="browseResultLinks">{item.visits.slice(0,2).map(visit=>visitLink(item,visit))}{item.visits.length>2&&<details><summary>Show {item.visits.length-2} more visited {item.visits.length-2===1?'post':'posts'} ▾</summary><div>{item.visits.slice(2).map(visit=>visitLink(item,visit))}</div></details>}</div>}</div></div></article>;
+  })}</div><p className="browseResultsFoot">Showing the {items.length} most recent browse {items.length===1?'run':'runs'}.</p></>}</section>;
 }
 
 function Entry({item,conversation}:{item:Item;conversation:string|null}) {
@@ -109,9 +119,9 @@ export default function Activity({initialCursorIds}:{initialCursorIds:number[]})
       try {
         const response = await fetch(`/api/activity${pending.cursor === null ? '' : `?beforePostId=${pending.cursor}`}`, {cache:'no-store',signal:controller.signal});
         if (!response.ok) throw new Error('Activity request failed');
-        const result = await response.json() as Pick<ActivityPage,'items'|'nextCursor'|'browseSchedule'|'recentEmptyBrowses'>;
+        const result = await response.json() as Pick<ActivityPage,'items'|'nextCursor'|'browseSchedule'|'recentBrowseResults'>;
         if (!active || requestId.current !== pending.id) return;
-        setPage(current=>({items:result.items,nextCursor:result.nextCursor,browseSchedule:result.browseSchedule,recentEmptyBrowses:result.recentEmptyBrowses,cursors:pending.direction==='next'?[...(current?.cursors||initialCursors),pending.cursor]:pending.direction==='previous'?(current?.cursors||initialCursors).slice(0,-1):current?.cursors||initialCursors}));
+        setPage(current=>({items:result.items,nextCursor:result.nextCursor,browseSchedule:result.browseSchedule,recentBrowseResults:result.recentBrowseResults,cursors:pending.direction==='next'?[...(current?.cursors||initialCursors),pending.cursor]:pending.direction==='previous'?(current?.cursors||initialCursors).slice(0,-1):current?.cursors||initialCursors}));
         setError(false);
         setRequest(current=>current?.id===pending.id?null:current);
       } catch {
@@ -130,8 +140,8 @@ export default function Activity({initialCursorIds}:{initialCursorIds:number[]})
       try {
         const response = await fetch(`/api/activity${cursor === null ? '' : `?beforePostId=${cursor}`}`, {cache:'no-store'});
         if (!response.ok) return;
-        const result = await response.json() as Pick<ActivityPage,'items'|'nextCursor'|'browseSchedule'|'recentEmptyBrowses'>;
-        if (active && epoch === requestId.current && sequence === latest) setPage(current=>current?{...current,items:result.items,nextCursor:result.nextCursor,browseSchedule:result.browseSchedule,recentEmptyBrowses:result.recentEmptyBrowses}:current);
+        const result = await response.json() as Pick<ActivityPage,'items'|'nextCursor'|'browseSchedule'|'recentBrowseResults'>;
+        if (active && epoch === requestId.current && sequence === latest) setPage(current=>current?{...current,items:result.items,nextCursor:result.nextCursor,browseSchedule:result.browseSchedule,recentBrowseResults:result.recentBrowseResults}:current);
       } catch { /* Leave the last complete page visible until the next poll. */ }
     }
     const timer = setInterval(() => void poll(), 3000);
@@ -159,10 +169,10 @@ export default function Activity({initialCursorIds}:{initialCursorIds:number[]})
   }
   const groups = [...new Set(items.map(item => item.postId))];
   const errorTitle = !page ? 'Couldn’t load activity' : request?.direction === 'next' ? 'Couldn’t load older posts' : request?.direction === 'previous' ? 'Couldn’t load newer posts' : 'Couldn’t load activity';
-  return <div className="activityPage"><div className="activityHeader"><Link href="/">← The Audience</Link><h1>Agent activity</h1><p>How friends found posts and reacted.</p></div>{error&&<div className="activityLoadError" role="alert"><div><strong>{errorTitle}</strong><p>{page?'This page is still here. Try again when you’re ready.':'Check your connection and try again.'}</p>{!page&&<small>Your posts are still available from Home.</small>}</div><button onClick={retry}>Retry</button></div>}{loading&&!page&&<p>Loading activity…</p>}{page&&<BrowseSchedule items={page.browseSchedule} now={now}/>} {page&&items.length === 0 && page.recentEmptyBrowses.length===0 && <p>No activity yet.</p>}{page&&groups.map(postId => {
+  return <div className="activityPage"><div className="activityHeader"><Link href="/">← The Audience</Link><h1>Agent activity</h1><p>How friends found posts and reacted.</p></div>{error&&<div className="activityLoadError" role="alert"><div><strong>{errorTitle}</strong><p>{page?'This page is still here. Try again when you’re ready.':'Check your connection and try again.'}</p>{!page&&<small>Your posts are still available from Home.</small>}</div><button onClick={retry}>Retry</button></div>}{loading&&!page&&<p>Loading activity…</p>}{page&&<BrowseSchedule items={page.browseSchedule} now={now}/>} {page&&<RecentBrowseResults items={page.recentBrowseResults}/>} {page&&<div className="postActivityHeading"><h2>Post activity</h2><p>Complete post groups and pagination continue below.</p></div>}{page&&items.length === 0 && page.recentBrowseResults.length===0 && <p>No activity yet.</p>}{page&&groups.map(postId => {
     const postItems = items.filter(item => item.postId === postId);
     const {reactions,mentions,visits,other,counts} = organizePostActivity(postItems);
     const available=postItems[0].postText!==null;
     return <section key={postId}><PostPreview postId={postId} postText={postItems[0].postText} postImageId={postItems[0].postImageId} postImageDescription={postItems[0].postImageDescription} href={available?conversationHref(postId,cursors):null}/>{reactions.map(item => <Entry key={item.id} item={item} conversation={available?conversationHref(postId,cursors,item.kind==='reply'?item.sourceCommentId:null):null}/>)}{mentions.map(item => <Entry key={item.id} item={item} conversation={available?conversationHref(postId,cursors,item.kind==='reply'?item.sourceCommentId:null):null}/>)}{visits.map(item => <Entry key={item.id} item={item} conversation={available?conversationHref(postId,cursors):null}/>)}{other.length > 0 && <details className="otherActivity"><summary><strong>Other activity</strong><span className="otherCounts">{otherCounts(counts)}</span><span className="showEntries">Show {other.length} {other.length === 1 ? 'entry' : 'entries'} ▾</span><span className="hideEntries">Hide {other.length} {other.length === 1 ? 'entry' : 'entries'} ▴</span></summary><div className="otherEntries">{other.map(item => <Entry key={item.id} item={item} conversation={available?conversationHref(postId,cursors,item.kind==='reply'?item.sourceCommentId:null):null}/>)}</div></details>}</section>;
-  })}{page&&<RecentEmptyBrowses items={page.recentEmptyBrowses}/>} {page&&<nav className="activityPagination" aria-label="Activity pages"><p>{cursors.length === 1 ? 'Showing newest posts' : 'Showing older posts'}</p><div className="pages"><button disabled={loading || cursors.length === 1} onClick={() => navigate('previous')}>← Previous</button><button disabled={loading || nextCursor === null} onClick={() => navigate('next')}>Next →</button></div><p className="paginationHint">{cursors.length === 1 ? 'Next shows older posts.' : 'Previous returns to newer posts. Next shows older posts.'}</p></nav>}</div>;
+  })} {page&&<nav className="activityPagination" aria-label="Activity pages"><p>{cursors.length === 1 ? 'Showing newest posts' : 'Showing older posts'}</p><div className="pages"><button disabled={loading || cursors.length === 1} onClick={() => navigate('previous')}>← Previous</button><button disabled={loading || nextCursor === null} onClick={() => navigate('next')}>Next →</button></div><p className="paginationHint">{cursors.length === 1 ? 'Next shows older posts.' : 'Previous returns to newer posts. Next shows older posts.'}</p></nav>}</div>;
 }

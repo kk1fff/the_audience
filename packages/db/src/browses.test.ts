@@ -77,9 +77,9 @@ test('an empty browse is persisted once without creating a post group',async()=>
   const store=await import(`./index.ts?empty=${Date.now()}`);store.syncAgents();const db=new DatabaseSync(path);
   const now=Date.now();db.prepare('UPDATE agent_feed_checks SET next_check_at=?').run(now-1);
   assert.equal(store.scheduleFeedChecks(now),0);assert.equal(store.scheduleFeedChecks(now),0);
-  const empty=store.getRecentEmptyBrowses() as any[];assert.equal(empty.length,1);assert.equal(empty[0].agentName,'One');assert.ok(empty[0].completedAt);
-  assert.deepEqual(store.getActivityPage().items,[]);
+  const empty=store.getRecentBrowseResults() as any[];assert.equal(empty.length,1);assert.equal(empty[0].agentName,'One');assert.ok(empty[0].completedAt);
+  assert.equal(empty[0].queuedCount,0);assert.deepEqual(store.getActivityPage().items,[]);
   db.prepare("UPDATE agents SET enabled=0 WHERE id='one'").run();
   assert.deepEqual(store.getBrowseSchedule(),[]);
-  assert.equal((store.getRecentEmptyBrowses() as any[]).length,1);
+  assert.equal((store.getRecentBrowseResults() as any[]).length,1);
 });
