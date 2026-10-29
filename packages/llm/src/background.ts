@@ -35,8 +35,17 @@ type ThreadComment={id:number;parentId?:number|null;authorType:string;text:strin
 function threadComment(item:unknown):item is ThreadComment {return typeof item==='object'&&item!==null&&'id' in item&&'authorType' in item&&'text' in item&&typeof item.id==='number'&&typeof item.authorType==='string'&&typeof item.text==='string';}
 function activeOwnerComment(context:Context):ThreadComment|null {
   if(context.sourceCommentId===null)return null;
-  const comment=context.comments.find((item):item is ThreadComment=>threadComment(item)&&item.id===context.sourceCommentId);
-  return comment?.authorType==='owner'?comment:null;
+  const comments=context.comments.filter(threadComment);
+  const byId=new Map(comments.map(comment=>[comment.id,comment]));
+  let comment=byId.get(context.sourceCommentId);
+  if(context.source!=='peer')return comment?.authorType==='owner'?comment:null;
+  const visited=new Set<number>();
+  while(comment&&!visited.has(comment.id)){
+    visited.add(comment.id);
+    if(comment.authorType==='owner')return comment;
+    comment=comment.parentId===null||comment.parentId===undefined?undefined:byId.get(comment.parentId);
+  }
+  return null;
 }
 function activeOwnerMessage(context:Context):string {return context.sourceCommentId===null?context.post:activeOwnerComment(context)?.text||'';}
 function clarificationParent(context:Context):ThreadComment|null {
