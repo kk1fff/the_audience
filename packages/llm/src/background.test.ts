@@ -157,7 +157,32 @@ test('unknown and multiple places get distinct clarifications; ordinary replies 
   const statement=resolve('I spent the afternoon in Springfield.');assert.equal(statement.timeTargetStatus,'none');assert.equal(statement.clarificationRequired,false);
   assert.equal(enforceTimeClarification({like:false,comment:'That sounds like a lovely visit.',memory:null},statement).comment,'That sounds like a lovely visit.');
   const seattle=resolve('Is it afternoon in Seattle?');assert.equal(seattle.timeTargetStatus,'resolved');
-  assert.equal(enforceTimeClarification({like:false,comment:'Seattle is still morning.',memory:null},seattle).comment,'Seattle is still morning.');
+  assert.equal(enforceTimeClarification({like:false,comment:'Seattle is 11:00 AM PDT.',memory:null},seattle).comment,'Seattle is 11:00 AM PDT.');
+});
+
+test('clarified place before “there” resolves and a verified-time guard rejects wrong answers',async()=>{
+  const instant=Date.UTC(2026,9,29,18);
+  const base:Context={...context,agent:{...context.agent,city:'Nashville',timeZone:'America/Chicago'},post:'Seattle and Nashville came up earlier.',sourceCommentId:13,comments:[
+    {id:10,authorType:'owner',text:'What time is it in Springfield?'},
+    {id:11,parentId:10,authorType:'agent',text:'Which Springfield do you mean—what state or country? I need that to give its current local time.'},
+    {id:13,parentId:11,authorType:'owner',text:'Springfield, Illinois. What time is it there right now?'}]};
+  const resolved=resolveRequestedTime(base,instant);
+  assert.equal(resolved.requestedTime?.place,'Springfield, Illinois');assert.equal(resolved.requestedTime?.zoneAbbreviation,'CDT');
+  assert.match(resolved.requestedTime!.localDateTime,/1:00 PM/);assert.equal(resolved.timeAnswerRequired,true);
+  const background=await createBackgroundBuilder({now:()=>instant,fetcher:fixtureFetcher([])})(base);
+  const messages=buildMessages(base,'reply','notification',background);
+  assert.match(messages.system,/answerRequired is true/);assert.match(messages.user,/"place":"Springfield, Illinois"/);
+  assert.match(messages.user,/"answerRequired":true/);assert.doesNotMatch(messages.user,/"place":"Seattle"/);
+  const fallback='As of Thursday, October 29, 2026, the local time in Springfield, Illinois is 1:00 PM CDT.';
+  for(const wrong of ['Perfect! My jukebox is playing Springfield anthems.','Springfield, Illinois is 2:00 PM.','Springfield, Illinois is 1:00 PM, but Nashville is 2:00 PM.','Springfield, Illinois is 1:00 PM this morning.','Springfield, Illinois is 1:00 PM, or maybe 2 o’clock.']){
+    assert.equal(enforceTimeClarification({like:false,comment:wrong,memory:'Bad time memory'},background).comment,fallback);
+  }
+  assert.equal(enforceTimeClarification({like:false,comment:'Springfield, Illinois is 1:00 PM CDT.',memory:null},background).comment,'Springfield, Illinois is 1:00 PM CDT.');
+  const oneSentence={...base,comments:[...base.comments.slice(0,2),{id:13,parentId:11,authorType:'owner',text:'What time is it in Springfield, Illinois?'}]};
+  assert.equal(resolveRequestedTime(oneSentence,instant).requestedTime?.place,'Springfield, Illinois');
+  const massachusetts={...base,comments:[...base.comments.slice(0,2),{id:13,parentId:11,authorType:'owner',text:'Springfield, Massachusetts. What time is it there right now?'}]};
+  assert.equal(resolveRequestedTime(massachusetts,instant).requestedTime?.zoneAbbreviation,'EDT');
+  assert.match(resolveRequestedTime(massachusetts,instant).requestedTime!.localDateTime,/2:00 PM/);
 });
 
 test('search provider switches to Exa only with a key and bounds typed results',async()=>{

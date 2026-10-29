@@ -35,4 +35,23 @@ test('subject-changing model reply is replaced before saving and a state follow-
   const next=store.claimJob();assert.ok(next);const nextContext=store.getContext(next);
   const resolved=await createBackgroundBuilder({now:()=>instant,fetcher:(async()=>{throw new Error('offline');}) as typeof fetch})(nextContext);
   assert.equal(resolved.requestedTime?.place,'Springfield, Illinois');assert.match(resolved.requestedTime!.localDateTime,/1:00 PM/);
+  store.completeJob(next,{like:false,comment:'Springfield, Illinois is 1:00 PM CDT.',memory:null});
+  const exact=store.createOwnerReply(saved.id,'Springfield, Illinois. What time is it there right now?');assert.ok(exact);
+  raw.prepare("UPDATE jobs SET due_at=0,mock_miss=0 WHERE source_comment_id=?").run(exact.id);
+  const exactJob=store.claimJob();assert.ok(exactJob);const exactContext=store.getContext(exactJob);
+  const exactBackground=await createBackgroundBuilder({now:()=>instant,fetcher:(async()=>{throw new Error('offline');}) as typeof fetch})(exactContext);
+  assert.equal(exactBackground.requestedTime?.place,'Springfield, Illinois');assert.equal(exactBackground.requestedTime?.zoneAbbreviation,'CDT');assert.equal(exactBackground.timeAnswerRequired,true);
+  const exactMessages=buildMessages(exactContext,exactJob.kind,exactJob.source,exactBackground);
+  assert.match(exactMessages.user,/"answerRequired":true/);assert.match(exactMessages.user,/"place":"Springfield, Illinois"/);
+  const previousExact={provider:process.env.LLM_PROVIDER,base:process.env.LLM_BASE_URL,model:process.env.LLM_MODEL};const originalExactFetch=globalThis.fetch;
+  process.env.LLM_PROVIDER='openai_compatible';process.env.LLM_BASE_URL='http://fake-model.test';process.env.LLM_MODEL='deterministic';
+  globalThis.fetch=(async()=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({like:false,comment:'Perfect! My internal jukebox is playing Springfield anthems.',memory:'Music memory'})}}]}),{status:200})) as typeof fetch;
+  let exactDecision;
+  try{exactDecision=await decide(exactContext,exactJob.kind,exactMessages,exactJob.source,exactBackground);}finally{globalThis.fetch=originalExactFetch;for(const [key,value] of Object.entries({LLM_PROVIDER:previousExact.provider,LLM_BASE_URL:previousExact.base,LLM_MODEL:previousExact.model})){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
+  store.recordPayload(exactJob,{...exactMessages,imageIds:[],provider:'openai_compatible',model:'deterministic',memoryBefore:exactContext.memory,background:exactBackground});
+  assert.equal(store.completeJob(exactJob,exactDecision),'commented');
+  const final=raw.prepare("SELECT text FROM comments WHERE post_id=? AND author_type='agent' ORDER BY id DESC LIMIT 1").get(post.id) as {text:string};
+  assert.equal(final.text,'As of Thursday, October 29, 2026, the local time in Springfield, Illinois is 1:00 PM CDT.');
+  const attempt=store.getActivityAttempts(exactJob.id)[0] as {backgroundJson:string;userText:string};
+  assert.equal(JSON.parse(attempt.backgroundJson).requestedTime.place,'Springfield, Illinois');assert.match(attempt.userText,/"answerRequired":true/);
 });
