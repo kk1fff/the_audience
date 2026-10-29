@@ -4,12 +4,23 @@ import Link from 'next/link';
 import { organizePostActivity } from '../../lib/activity';
 
 type Attempt = {id:number;status:string;error:string|null;systemText:string|null;userText:string|null;legacyPromptText:string|null;provider:string|null;model:string|null;modelResponse:string|null;memoryBefore:string|null;memoryAfter:string|null;memoryEvaluation:string|null;imageIds:string[];startedAt:number;finishedAt:number|null};
-type Item = {id:number;kind:'post'|'reply';source:'notification'|'feed';discoveredAt:number|null;postId:number;sourceCommentId:number|null;agentName:string;agentId:string;status:string;outcome:string|null;dueAt:number;completedAt:number|null;error:string|null;memoryBefore:string|null;memoryAfter:string|null;attemptHistory:Attempt[]};
+type Item = {id:number;kind:'post'|'reply';source:'notification'|'feed';discoveredAt:number|null;postId:number;postText:string|null;postImageId:string|null;sourceCommentId:number|null;agentName:string;agentId:string;status:string;outcome:string|null;dueAt:number;completedAt:number|null;error:string|null;memoryBefore:string|null;memoryAfter:string|null;attemptHistory:Attempt[]};
 
 function label(value: string) { const text = value.replaceAll('_', ' '); return text.charAt(0).toUpperCase() + text.slice(1); }
 function otherCounts(counts: Map<string, number>) {
   const order = ['not selected', 'missed', 'pending', 'ignored', 'failed', 'running'];
   return [...counts].sort(([a],[b]) => (order.indexOf(a) < 0 ? order.length : order.indexOf(a)) - (order.indexOf(b) < 0 ? order.length : order.indexOf(b))).map(([name,count]) => `${count} ${name}`).join(' · ');
+}
+
+function PostPreview({postId,postText,postImageId}:{postId:number;postText:string|null;postImageId:string|null}) {
+  const [imageUnavailable,setImageUnavailable] = useState(false);
+  const excerpt = postText?.replace(/\s+/g,' ').trim() || '';
+  const unavailable = postText === null;
+  const imageOnly = !unavailable && !excerpt && !!postImageId;
+  return <div className="postPreview">
+    <div className="postPreviewCopy"><h2>Post #{postId}</h2><p className={`postPreviewText${unavailable?' unavailable':''}`}>{unavailable?'Post unavailable':excerpt || (imageOnly?'Photo post':'Post preview unavailable')}</p>{unavailable&&<p className="postPreviewMeta">Activity records are still available below.</p>}</div>
+    {!unavailable&&postImageId&&(imageUnavailable?<div className="postThumbFallback" role="img" aria-label={`Image from post #${postId} unavailable`}>Image unavailable</div>:<img className="postThumb" src={`/api/images/${postImageId}`} alt={`Image from post #${postId}`} onError={()=>setImageUnavailable(true)}/>)}
+  </div>;
 }
 
 function Entry({item}:{item:Item}) {
@@ -40,7 +51,8 @@ export default function Activity() {
   useEffect(() => { let active = true; async function load() { const response = await fetch(`/api/activity?offset=${offset}`, {cache:'no-store'}); if (active && response.ok) setItems(await response.json()); } void load(); const timer = setInterval(() => void load(), 3000); return () => { active = false; clearInterval(timer); }; }, [offset]);
   const groups = [...new Set(items.map(item => item.postId))];
   return <div className="activityPage"><div className="activityHeader"><Link href="/">← The Audience</Link><h1>Agent activity</h1><p>How friends found posts and reacted.</p></div>{items.length === 0 && <p>No activity yet.</p>}{groups.map(postId => {
-    const {reactions,other,counts} = organizePostActivity(items.filter(item => item.postId === postId));
-    return <section key={postId}><h2>Post #{postId}</h2>{reactions.map(item => <Entry key={item.id} item={item}/>)}{other.length > 0 && <details className="otherActivity"><summary><strong>Other activity</strong><span className="otherCounts">{otherCounts(counts)}</span><span className="showEntries">Show {other.length} {other.length === 1 ? 'entry' : 'entries'} ▾</span><span className="hideEntries">Hide {other.length} {other.length === 1 ? 'entry' : 'entries'} ▴</span></summary><div className="otherEntries">{other.map(item => <Entry key={item.id} item={item}/>)}</div></details>}</section>;
+    const postItems = items.filter(item => item.postId === postId);
+    const {reactions,other,counts} = organizePostActivity(postItems);
+    return <section key={postId}><PostPreview postId={postId} postText={postItems[0].postText} postImageId={postItems[0].postImageId}/>{reactions.map(item => <Entry key={item.id} item={item}/>)}{other.length > 0 && <details className="otherActivity"><summary><strong>Other activity</strong><span className="otherCounts">{otherCounts(counts)}</span><span className="showEntries">Show {other.length} {other.length === 1 ? 'entry' : 'entries'} ▾</span><span className="hideEntries">Hide {other.length} {other.length === 1 ? 'entry' : 'entries'} ▴</span></summary><div className="otherEntries">{other.map(item => <Entry key={item.id} item={item}/>)}</div></details>}</section>;
   })}<div className="pages"><button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</button><button disabled={items.length < 50} onClick={() => setOffset(offset + 50)}>Next</button></div></div>;
 }

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="720" viewBox="0 0 960 720" role="img" aria-labelledby="title desc">
+  <title id="title">Agent activity post previews on desktop</title>
+  <desc id="desc">Desktop activity groups show a compact text and image preview, an image-only preview, and a post unavailable fallback while reactions stay prominent.</desc>
+  <rect width="960" height="720" fill="#faf9f6"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <text x="80" y="42" font-size="16" fill="#7865cc">← The Audience</text>
+    <text x="80" y="93" font-size="32" font-weight="bold">Agent activity</text>
+    <text x="80" y="121" font-size="15" fill="#68717d">How friends found posts and reacted.</text>
+
+    <rect x="80" y="146" width="800" height="91" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="100" y="174" font-size="12" font-weight="bold" fill="#68717d">Post #9</text>
+    <text x="100" y="200" font-size="16">A little snapshot of my day. Does this remind anyone of a place…</text>
+    <rect x="806" y="160" width="57" height="63" rx="8" fill="#d8d0bd"/>
+    <path d="M812 211l15-21 10 11 11-17 9 27z" fill="#80946c"/>
+    <circle cx="846" cy="176" r="5" fill="#fff4c4"/>
+    <rect x="80" y="250" width="800" height="87" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="100" y="278" font-size="17" font-weight="bold">Mira</text>
+    <rect x="754" y="261" width="106" height="26" rx="13" fill="#e8f6ee"/>
+    <text x="770" y="279" font-size="12" font-weight="bold" fill="#28784d">Feed check</text>
+    <text x="100" y="305" font-size="15" font-weight="bold">Liked and commented</text>
+    <text x="100" y="324" font-size="13" fill="#7865cc">View model request and memory  ▾</text>
+
+    <rect x="80" y="367" width="800" height="88" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="100" y="393" font-size="12" font-weight="bold" fill="#68717d">Post #8</text>
+    <text x="100" y="422" font-size="16">Photo post</text>
+    <rect x="806" y="381" width="57" height="60" rx="8" fill="#e7e2f4"/>
+    <path d="M816 408h37m-18-18v37" stroke="#7865cc" stroke-width="2"/>
+    <text x="100" y="442" font-size="12" fill="#68717d">Image preview</text>
+
+    <rect x="80" y="485" width="800" height="90" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="100" y="512" font-size="12" font-weight="bold" fill="#68717d">Post #7</text>
+    <text x="100" y="542" font-size="16" fill="#68717d">Post unavailable</text>
+    <text x="100" y="561" font-size="13" fill="#68717d">Activity records are still available below.</text>
+
+    <text x="80" y="624" font-size="14" fill="#68717d">Each group keeps reactions above its expandable Other activity summary.</text>
+  </g>
+</svg>

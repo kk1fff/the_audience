@@ -63,4 +63,26 @@ test('post, reply, and per-agent memory persist without duplicate reactions', as
   assert.equal((sql.prepare("SELECT COUNT(*) AS count FROM comments WHERE post_id=? AND author_type='agent'").get(discoveryPost.id) as any).count,2);
   assert.equal((sql.prepare("SELECT COUNT(*) AS count FROM jobs WHERE post_id=? AND source='feed'").get(discoveryPost.id) as any).count,2);
 
+  const laterTopImage=store.storeImage(Buffer.from([0xff,0xd8,0xff]),'image/jpeg');
+  sql.prepare('UPDATE images SET post_id=? WHERE id=?').run(post.id,laterTopImage.id);
+  const firstPostActivity=store.getActivity(100).find((item:any)=>item.postId===post.id) as any;
+  assert.equal(firstPostActivity.postText,'A first post');
+  assert.equal(firstPostActivity.postImageId,image.id);
+  const imageOnly=store.storeImage(Buffer.from([0xff,0xd8,0xff]),'image/jpeg');
+  const imageOnlyPost=store.createPost('',[imageOnly.id]);
+  const imageOnlyActivity=store.getActivity(100).find((item:any)=>item.postId===imageOnlyPost.id) as any;
+  assert.equal(imageOnlyActivity.postText,'');
+  assert.equal(imageOnlyActivity.postImageId,imageOnly.id);
+  const replyOnlyPost=store.createPost('Reply image should not be the thumbnail');
+  const replyOnlyComment=Number(sql.prepare("INSERT INTO comments(post_id,author_type,agent_id,text) VALUES(?,'agent','one','Photo in reply')").run(replyOnlyPost.id).lastInsertRowid);
+  const commentImage=store.storeImage(Buffer.from([0xff,0xd8,0xff]),'image/jpeg');
+  sql.prepare('UPDATE images SET post_id=?,comment_id=? WHERE id=?').run(replyOnlyPost.id,replyOnlyComment,commentImage.id);
+  const replyOnlyActivity=store.getActivity(100).find((item:any)=>item.postId===replyOnlyPost.id) as any;
+  assert.equal(replyOnlyActivity.postImageId,null);
+  sql.exec('PRAGMA foreign_keys=OFF');
+  const orphanId=Number(sql.prepare("INSERT INTO jobs(kind,post_id,agent_id,due_at,status,source) VALUES('post',999999,'one',0,'not_selected','notification')").run().lastInsertRowid);
+  const orphanActivity=store.getActivity(100).find((item:any)=>item.id===orphanId) as any;
+  assert.equal(orphanActivity.postText,null);
+  assert.equal(orphanActivity.postImageId,null);
+
 });
