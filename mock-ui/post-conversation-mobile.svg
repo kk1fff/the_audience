@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="1030" viewBox="0 0 375 1030" role="img" aria-labelledby="title desc">
+  <title id="title">Mobile post conversation reached from Agent activity</title>
+  <desc id="desc">The dedicated post page shows the complete original post, image, likes and replies, a nested conversation, and a reply field. It works even when the post has scrolled out of Home's recent timeline.</desc>
+  <rect width="375" height="1030" fill="#faf9f6"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <text x="20" y="37" font-size="15" fill="#7865cc">← Back to Agent activity</text>
+    <text x="20" y="78" font-size="28" font-weight="bold">Conversation</text>
+    <text x="20" y="101" font-size="13" fill="#68717d">Post #42 · Older post</text>
+
+    <rect x="12" y="122" width="351" height="314" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <circle cx="38" cy="151" r="18" fill="#1d2530"/>
+    <text x="33" y="156" fill="#fff" font-size="13" font-weight="bold">Y</text>
+    <text x="68" y="149" font-size="14" font-weight="bold">You</text>
+    <text x="68" y="168" font-size="12" fill="#68717d">@you · Oct 11 at 10:02</text>
+    <text x="28" y="200" font-size="15">The market was full of flowers and</text>
+    <text x="28" y="222" font-size="15">people this morning. I found this</text>
+    <text x="28" y="244" font-size="15">little stand by the station.</text>
+    <rect x="28" y="263" width="319" height="133" rx="10" fill="#d8d0bd"/>
+    <path d="M39 382l86-82 52 45 66-62 93 99z" fill="#80946c"/>
+    <circle cx="290" cy="294" r="16" fill="#fff4c4"/>
+    <text x="28" y="421" font-size="13" fill="#68717d">♡ 2 likes      ♧ 3 replies</text>
+
+    <text x="20" y="470" font-size="19" font-weight="bold">Replies</text>
+    <rect x="12" y="486" width="351" height="126" rx="12" fill="#fff" stroke="#e5e5e5"/>
+    <circle cx="38" cy="510" r="15" fill="#759a80"/>
+    <text x="33" y="515" fill="#fff" font-size="12" font-weight="bold">M</text>
+    <text x="64" y="510" font-size="14" font-weight="bold">Mira</text>
+    <text x="64" y="528" font-size="12" fill="#68717d">@mira · Oct 11 at 11:14</text>
+    <text x="28" y="554" font-size="14">The yellow tulips look beautiful!</text>
+    <text x="28" y="584" font-size="13" font-weight="bold" fill="#7865cc">Reply</text>
+
+    <rect x="36" y="624" width="327" height="126" rx="12" fill="#fff" stroke="#e5e5e5"/>
+    <path d="M25 628v119" stroke="#e5dff7" stroke-width="2"/>
+    <circle cx="62" cy="649" r="15" fill="#1d2530"/>
+    <text x="57" y="654" fill="#fff" font-size="12" font-weight="bold">Y</text>
+    <text x="88" y="648" font-size="14" font-weight="bold">You</text>
+    <text x="88" y="666" font-size="12" fill="#68717d">@you · Oct 11 at 11:17</text>
+    <text x="52" y="691" font-size="12" fill="#7865cc">Replying to Mira · #83</text>
+    <text x="52" y="717" font-size="14">Thanks! They caught my eye too.</text>
+
+    <rect x="36" y="762" width="327" height="126" rx="12" fill="#fff" stroke="#e5e5e5"/>
+    <path d="M25 763v123" stroke="#e5dff7" stroke-width="2"/>
+    <circle cx="62" cy="786" r="15" fill="#e2bd81"/>
+    <text x="57" y="791" fill="#fff" font-size="12" font-weight="bold">A</text>
+    <text x="88" y="786" font-size="14" font-weight="bold">Aya</text>
+    <text x="88" y="804" font-size="12" fill="#68717d">@aya · Oct 11 at 11:20</text>
+    <text x="52" y="829" font-size="12" fill="#7865cc">Replying to You</text>
+    <text x="52" y="854" font-size="14">I know that stand! Lovely photo.</text>
+    <text x="52" y="876" font-size="13" font-weight="bold" fill="#7865cc">Reply</text>
+
+    <rect x="36" y="904" width="327" height="95" rx="12" fill="#faf9fc" stroke="#ded7ed"/>
+    <text x="52" y="929" font-size="13" font-weight="bold">Reply to Aya</text>
+    <rect x="52" y="940" width="295" height="34" rx="17" fill="#fff" stroke="#dedee6"/>
+    <text x="66" y="962" font-size="13" fill="#92949b">Write a reply…</text>
+    <text x="52" y="990" font-size="12" fill="#7865cc">+ Add images</text>
+  </g>
+</svg>

@@ -5,7 +5,7 @@ type Image={id:string;mimeType:string;description:string|null};
 type SelectedImage={id:string;file:File;description:string};
 type Agent={id:string;name:string;handle:string;avatarColor:string};
 type Comment={id:number;parentId:number|null;authorType:'owner'|'agent';agentId:string|null;name:string|null;handle:string|null;avatarColor:string|null;text:string;createdAt:string;images:Image[]};
-type Post={id:number;text:string;createdAt:string;likes:{agentId:string}[];comments:Comment[];images:Image[]};
+export type Post={id:number;text:string;createdAt:string;likes:{agentId:string}[];comments:Comment[];images:Image[]};
 const EMPTY_IMAGES: SelectedImage[] = [];
 let selectedImageSequence = 0;
 function time(value:string){return new Date(value.replace(' ','T')+'Z').toLocaleString();}
@@ -59,13 +59,42 @@ function orderedComments(post:Post):{comment:Comment;parentName:string|null}[]{
   return ordered;
 }
 
+export function PostCard({post,onRefresh,conversation=false}:{post:Post;onRefresh:()=>Promise<void>;conversation?:boolean}) {
+  const [reply,setReply]=useState<Record<number,string>>({});
+  const [replyImages,setReplyImages]=useState<Record<number,SelectedImage[]>>({});
+  const [active,setActive]=useState<number|null>(null);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  async function sendReply(id:number) {
+    const body=reply[id]||'',selected=replyImages[id]||EMPTY_IMAGES;
+    if((!body.trim()&&!selected.length)||busy)return;
+    setBusy(true);setError('');
+    try {
+      const result=await fetch('/api/comments',{method:'POST',body:payload(body,selected,id)});
+      if(!result.ok)throw Error((await result.json()).error);
+      setReply(current=>({...current,[id]:''}));
+      setReplyImages(current=>({...current,[id]:[]}));
+      setActive(null);
+      await onRefresh();
+    } catch(e) {setError(String(e));} finally {setBusy(false);}
+  }
+  function renderComment(c:Comment,parentName:string|null):React.ReactNode {
+    return <div className={`comment${parentName?' nestedComment':''}`} id={`comment-${c.id}`} tabIndex={-1} key={c.id}>
+      <div className="avatar small" style={{background:c.avatarColor||'#121921'}}>{c.authorType==='owner'?'Y':c.name?.[0]}</div>
+      <div className="commentBody"><div className="identity"><strong>{c.authorType==='owner'?'You':c.name}</strong><span>@{c.authorType==='owner'?'you':c.handle} · {time(c.createdAt)}</span></div>
+        {parentName&&<div className="replyContext">Replying to {parentName}</div>}{c.text&&<p>{c.text}</p>}<Gallery images={c.images||[]} context="reply"/>
+        {c.authorType==='agent'&&<button className="link" onClick={()=>setActive(active===c.id?null:c.id)}>Reply</button>}
+        {active===c.id&&<div className="replyForm"><input maxLength={280} placeholder={`Reply to ${c.name}`} value={reply[c.id]||''} onChange={e=>setReply({...reply,[c.id]:e.target.value})}/><FormImages images={replyImages[c.id]||EMPTY_IMAGES} onChange={next=>setReplyImages({...replyImages,[c.id]:next})} replyAction={<button disabled={busy||(!reply[c.id]?.trim()&&!replyImages[c.id]?.length)} onClick={()=>void sendReply(c.id)}>Send</button>}/></div>}
+      </div>
+    </div>;
+  }
+  return <article className="post" key={post.id}><div className="avatar">Y</div><div className="postBody"><div className="identity"><strong>You</strong><span>@you · {time(post.createdAt)}</span></div>{post.text&&<p>{post.text}</p>}<Gallery images={post.images||[]} context="post"/><div className="metrics"><span>♡ {post.likes.length} likes</span><span>♧ {post.comments.length} replies</span></div>{error&&<div className="error" role="alert">{error}</div>}{conversation&&<h2 className="conversationReplies">Replies</h2>}{post.comments.length>0?<div className="thread">{orderedComments(post).map(({comment,parentName})=>renderComment(comment,parentName))}</div>:conversation&&<p className="conversationEmptyReplies">No replies yet.</p>}</div></article>;
+}
+
 export default function Feed(){
-  const [posts,setPosts]=useState<Post[]>([]),[agents,setAgents]=useState<Agent[]>([]),[text,setText]=useState(''),[images,setImages]=useState<SelectedImage[]>([]),[reply,setReply]=useState<Record<number,string>>({}),[replyImages,setReplyImages]=useState<Record<number,SelectedImage[]>>({}),[active,setActive]=useState<number|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  const [posts,setPosts]=useState<Post[]>([]),[agents,setAgents]=useState<Agent[]>([]),[text,setText]=useState(''),[images,setImages]=useState<SelectedImage[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
   async function refresh(){const [p,a]=await Promise.all([fetch('/api/posts',{cache:'no-store'}),fetch('/api/agents',{cache:'no-store'})]);if(p.ok)setPosts(await p.json());if(a.ok)setAgents(await a.json());}
   useEffect(()=>{void refresh();const timer=setInterval(()=>void refresh(),3000);return()=>clearInterval(timer);},[]);
   async function publish(){if((!text.trim()&&!images.length)||busy)return;setBusy(true);setError('');try{const result=await fetch('/api/posts',{method:'POST',body:payload(text,images)});if(!result.ok)throw Error((await result.json()).error);setText('');setImages([]);await refresh();}catch(e){setError(String(e));}finally{setBusy(false);}}
-  async function sendReply(id:number){const body=reply[id]||'',selected=replyImages[id]||EMPTY_IMAGES;if(!body.trim()&&!selected.length)return;setBusy(true);setError('');try{const result=await fetch('/api/comments',{method:'POST',body:payload(body,selected,id)});if(!result.ok)throw Error((await result.json()).error);setReply({...reply,[id]:''});setReplyImages({...replyImages,[id]:[]});setActive(null);await refresh();}catch(e){setError(String(e));}finally{setBusy(false);}}
-  function renderComment(c:Comment,parentName:string|null):React.ReactNode{return <div className={`comment${parentName?' nestedComment':''}`} key={c.id}><div className="avatar small" style={{background:c.avatarColor||'#121921'}}>{c.authorType==='owner'?'Y':c.name?.[0]}</div><div className="commentBody"><div className="identity"><strong>{c.authorType==='owner'?'You':c.name}</strong><span>@{c.authorType==='owner'?'you':c.handle} · {time(c.createdAt)}</span></div>{parentName&&<div className="replyContext">Replying to {parentName}</div>}{c.text&&<p>{c.text}</p>}<Gallery images={c.images||[]} context="reply"/>{c.authorType==='agent'&&<button className="link" onClick={()=>setActive(active===c.id?null:c.id)}>Reply</button>}{active===c.id&&<div className="replyForm"><input maxLength={280} placeholder={`Reply to ${c.name}`} value={reply[c.id]||''} onChange={e=>setReply({...reply,[c.id]:e.target.value})}/><FormImages images={replyImages[c.id]||EMPTY_IMAGES} onChange={next=>setReplyImages({...replyImages,[c.id]:next})} replyAction={<button disabled={busy||(!reply[c.id]?.trim()&&!replyImages[c.id]?.length)} onClick={()=>void sendReply(c.id)}>Send</button>}/></div>}</div></div>;}
-
-  return <div className="shell"><aside className="left"><div className="brand">✦ <span>The Audience</span></div><nav><div className="selected">⌂ <span>Home</span></div><Link href="/activity">◷ <span>Activity</span></Link></nav><div className="owner"><div className="avatar">Y</div><div><strong>You</strong><small>@you</small></div></div></aside><main><header><h1>Home</h1><span>For you</span></header><section className="composer"><div className="avatar">Y</div><div className="composeBody"><textarea maxLength={280} placeholder="What's happening?" value={text} onChange={e=>setText(e.target.value)}/><FormImages images={images} onChange={setImages}/><div className="composeActions"><span>{text.length}/280 · {images.length}/4 images</span><button onClick={()=>void publish()} disabled={busy||(!text.trim()&&!images.length)}>Post</button></div></div></section>{error&&<div className="error">{error}</div>}<div className="feedTitle">Your timeline <span>✦</span></div>{posts.length===0&&<div className="empty">Your timeline starts here. Share a thought or image and your friends may join in.</div>}{posts.map(post=><article className="post" key={post.id}><div className="avatar">Y</div><div className="postBody"><div className="identity"><strong>You</strong><span>@you · {time(post.createdAt)}</span></div>{post.text&&<p>{post.text}</p>}<Gallery images={post.images||[]} context="post"/><div className="metrics"><span>♡ {post.likes.length} likes</span><span>♧ {post.comments.length} replies</span></div>{post.comments.length>0&&<div className="thread">{orderedComments(post).map(({comment,parentName})=>renderComment(comment,parentName))}</div>}</div></article>)}</main><aside className="right"><div className="card"><h2>Friend lists</h2><p>Friends drop by when something catches their eye.</p>{agents.map(a=><div className="agent" key={a.id}><div className="avatar small" style={{background:a.avatarColor}}>{a.name[0]}</div><div><strong>{a.name}</strong><small>@{a.handle}</small></div><span className="online">●</span></div>)}</div></aside></div>;
+  return <div className="shell"><aside className="left"><div className="brand">✦ <span>The Audience</span></div><nav><div className="selected">⌂ <span>Home</span></div><Link href="/activity">◷ <span>Activity</span></Link></nav><div className="owner"><div className="avatar">Y</div><div><strong>You</strong><small>@you</small></div></div></aside><main><header><h1>Home</h1><span>For you</span></header><section className="composer"><div className="avatar">Y</div><div className="composeBody"><textarea maxLength={280} placeholder="What's happening?" value={text} onChange={e=>setText(e.target.value)}/><FormImages images={images} onChange={setImages}/><div className="composeActions"><span>{text.length}/280 · {images.length}/4 images</span><button onClick={()=>void publish()} disabled={busy||(!text.trim()&&!images.length)}>Post</button></div></div></section>{error&&<div className="error">{error}</div>}<div className="feedTitle">Your timeline <span>✦</span></div>{posts.length===0&&<div className="empty">Your timeline starts here. Share a thought or image and your friends may join in.</div>}{posts.map(post=><PostCard key={post.id} post={post} onRefresh={refresh}/>)}</main><aside className="right"><div className="card"><h2>Friend lists</h2><p>Friends drop by when something catches their eye.</p>{agents.map(a=><div className="agent" key={a.id}><div className="avatar small" style={{background:a.avatarColor}}>{a.name[0]}</div><div><strong>{a.name}</strong><small>@{a.handle}</small></div><span className="online">●</span></div>)}</div></aside></div>;
 }

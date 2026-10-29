@@ -68,13 +68,21 @@ export function scheduleFeedChecks(now = Date.now()): number { return transactio
   return scheduled;
 }); }
 export function getAgents(): AgentProfile[] { return (getDb().prepare('SELECT id,name,handle,persona,avatar_color AS avatarColor,enabled FROM agents WHERE enabled=1 ORDER BY name').all() as any[]).map(a => ({ ...a, enabled: Boolean(a.enabled) })); }
-export function getFeed() {
-  const posts = getDb().prepare('SELECT id,text,created_at AS createdAt FROM posts ORDER BY id DESC LIMIT 100').all() as any[];
-  return posts.map(post => ({ ...post,
+function hydratePost(post:any) {
+  return { ...post,
     images: getImagesForPost(post.id).map(({id,mimeType,byteSize,description})=>({id,mimeType,byteSize,description})),
     likes: getDb().prepare('SELECT agent_id AS agentId FROM likes WHERE post_id=?').all(post.id),
     comments: getDb().prepare(`SELECT c.id,c.post_id AS postId,c.parent_id AS parentId,c.author_type AS authorType,c.agent_id AS agentId,c.text,c.created_at AS createdAt,a.name,a.handle,a.avatar_color AS avatarColor FROM comments c LEFT JOIN agents a ON a.id=c.agent_id WHERE c.post_id=? ORDER BY c.id`).all(post.id).map((c:any) => ({...c, images:getImagesForComment(c.id).map(({id,mimeType,byteSize,description})=>({id,mimeType,byteSize,description}))}))
-  }));
+  };
+}
+export function getFeed() {
+  const posts = getDb().prepare('SELECT id,text,created_at AS createdAt FROM posts ORDER BY id DESC LIMIT 100').all() as any[];
+  return posts.map(hydratePost);
+}
+export function getPost(id:number) {
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  const post = getDb().prepare('SELECT id,text,created_at AS createdAt FROM posts WHERE id=?').get(id);
+  return post ? hydratePost(post) : null;
 }
 export function createPost(text: string, imageIds: string[] = []) { return transaction(() => {
   const id = Number(getDb().prepare('INSERT INTO posts(text) VALUES(?)').run(text).lastInsertRowid);
