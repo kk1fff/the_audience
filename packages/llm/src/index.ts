@@ -35,7 +35,10 @@ export function enforceTimeClarification(decision:Decision,background?:TimeGuard
     const comment=decision.comment?.trim()||'';
     const preciseClock=/\b(?:[01]?\d|2[0-3]):[0-5]\d\s*(?:[AP]\.?M\.?)?\b/i;
     const currentClaim=/\b(?:right now|currently|current time|local time|time (?:is|in)|it(?: is|'s)|(?:there|here|[A-Z][a-z]+(?:,\s*[A-Z][a-z]+)?)\s+is)\b/i;
-    if(preciseClock.test(comment)&&currentClaim.test(comment))return {...decision,comment:null,memory:null,memoryEvaluation:'Suppressed an unverified peer current-time claim.'};
+    const place='[A-Z][A-Za-z-]+(?:\\s+[A-Z][A-Za-z-]+){0,2}(?:,\\s*[A-Z][A-Za-z-]+)?';
+    const clock='(?:[01]?\\d|2[0-3]):[0-5]\\d\\s*(?:[AP]\\.?M\\.?)?(?:\\s+[A-Z]{2,5})?';
+    const compactClaim=new RegExp(`^(?:${place}:\\s*${clock}|${clock}\\s+in\\s+${place})[.!]?$`,'i');
+    if(preciseClock.test(comment)&&(currentClaim.test(comment)||compactClaim.test(comment)))return {...decision,comment:null,memory:null,memoryEvaluation:'Suppressed an unverified peer current-time claim.'};
     return decision;
   }
   if(!background?.clarificationRequired||(background.timeTargetStatus!=='unverified'&&background.timeTargetStatus!=='ambiguous'))return decision;

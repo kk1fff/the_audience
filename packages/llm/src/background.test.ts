@@ -214,6 +214,9 @@ test('peer time target follows its source comment ancestry and guards only curre
   assert.equal(enforceTimeClarification({like:false,comment:'Springfield, IL time is 12:15 PM CDT.',memory:'Bad'},noTarget,'peer').comment,null);
   assert.equal(enforceTimeClarification({like:false,comment:'It is currently 12:15 PM in Springfield.',memory:'Bad'},noTarget,'peer').memory,null);
   assert.equal(enforceTimeClarification({like:false,comment:"It's 12:15 PM in Springfield.",memory:null},noTarget,'peer').comment,null);
+  for(const compact of ['Springfield: 12:15 PM CDT.','12:15 PM CDT in Springfield.','Springfield, Illinois: 12:15 PM.','12:15 PM in Springfield, Illinois.']){
+    assert.equal(enforceTimeClarification({like:false,comment:compact,memory:'Bad'},noTarget,'peer').comment,null,compact);
+  }
   assert.equal(enforceTimeClarification({like:false,comment:'I enjoyed the music.',memory:null},noTarget,'peer').comment,'I enjoyed the music.');
   assert.equal(enforceTimeClarification({like:false,comment:'Let us meet at 2:30 PM tomorrow.',memory:null},noTarget,'peer').comment,'Let us meet at 2:30 PM tomorrow.');
   const statement=resolveRequestedTime({...peer,comments:[...comments,{id:9,parentId:8,authorType:'owner',text:'I visited Seattle this afternoon.'},{id:10,parentId:9,authorType:'agent',text:'Nice visit.'}],sourceCommentId:10},instant);
