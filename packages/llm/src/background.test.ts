@@ -185,6 +185,42 @@ test('clarified place before “there” resolves and a verified-time guard reje
   assert.match(resolveRequestedTime(massachusetts,instant).requestedTime!.localDateTime,/2:00 PM/);
 });
 
+test('peer time target follows its source comment ancestry and guards only current-time claims',()=>{
+  const instant=Date.UTC(2026,9,29,18,59,4);
+  const comments=[
+    {id:1,authorType:'owner',text:'What time is it in Springfield?'},
+    {id:2,parentId:1,authorType:'agent',text:'Which Springfield do you mean—what state or country?'},
+    {id:3,parentId:2,authorType:'owner',text:'Springfield, Illinois. What time is it there right now?'},
+    {id:4,parentId:3,authorType:'agent',text:'I think it is noon.'},
+    {id:5,parentId:4,authorType:'agent',text:'Let me check.'},
+    {id:6,authorType:'owner',text:'What time is it in Seattle?'},
+    {id:7,parentId:6,authorType:'agent',text:'That is a different branch.'},
+    {id:8,authorType:'agent',text:'A root peer comment.'}
+  ];
+  const peer:Context={...context,source:'peer',post:'A non-time post',comments,sourceCommentId:5};
+  const resolved=resolveRequestedTime(peer,instant);
+  assert.equal(resolved.requestedTime?.place,'Springfield, Illinois');
+  assert.match(resolved.requestedTime!.localDateTime,/1:59 PM/);
+  assert.equal(resolved.timeAnswerRequired,true);
+  const fallback='As of Thursday, October 29, 2026, the local time in Springfield, Illinois is 1:59 PM CDT.';
+  for(const wrong of ['Springfield, Illinois is 12:15 PM CDT.','Springfield, Illinois is 1:58 PM CDT.','Springfield, Illinois is 1:59 PM EDT.','Seattle is 1:59 PM CDT.']){
+    assert.equal(enforceTimeClarification({like:false,comment:wrong,memory:null},resolved,'peer').comment,fallback);
+  }
+  assert.equal(enforceTimeClarification({like:false,comment:'Springfield, Illinois is 1:59 PM CDT.',memory:null},resolved,'peer').comment,'Springfield, Illinois is 1:59 PM CDT.');
+  const unrelated=resolveRequestedTime({...peer,sourceCommentId:7},instant);
+  assert.equal(unrelated.requestedTime?.place,'Seattle');
+  const noTarget=resolveRequestedTime({...peer,sourceCommentId:8},instant);
+  assert.equal(noTarget.timeTargetStatus,'none');
+  assert.equal(enforceTimeClarification({like:false,comment:'Springfield, IL time is 12:15 PM CDT.',memory:'Bad'},noTarget,'peer').comment,null);
+  assert.equal(enforceTimeClarification({like:false,comment:'It is currently 12:15 PM in Springfield.',memory:'Bad'},noTarget,'peer').memory,null);
+  assert.equal(enforceTimeClarification({like:false,comment:"It's 12:15 PM in Springfield.",memory:null},noTarget,'peer').comment,null);
+  assert.equal(enforceTimeClarification({like:false,comment:'I enjoyed the music.',memory:null},noTarget,'peer').comment,'I enjoyed the music.');
+  assert.equal(enforceTimeClarification({like:false,comment:'Let us meet at 2:30 PM tomorrow.',memory:null},noTarget,'peer').comment,'Let us meet at 2:30 PM tomorrow.');
+  const statement=resolveRequestedTime({...peer,comments:[...comments,{id:9,parentId:8,authorType:'owner',text:'I visited Seattle this afternoon.'},{id:10,parentId:9,authorType:'agent',text:'Nice visit.'}],sourceCommentId:10},instant);
+  assert.equal(statement.timeAnswerRequired,false);
+  assert.equal(enforceTimeClarification({like:false,comment:'Seattle is 12:15 PM PDT.',memory:null},statement,'peer').comment,null);
+});
+
 test('search provider switches to Exa only with a key and bounds typed results',async()=>{
   assert.equal(createSearchProvider({}).name,'DDGS');assert.equal(createSearchProvider({EXA_API_KEY:'secret'}).name,'Exa');
   let body:any;const fetcher=(async(_url:RequestInfo|URL,init?:RequestInit)=>{body=JSON.parse(String(init?.body));return new Response(JSON.stringify({results:[{title:'One',url:'https://example.com/one',highlights:['A detail'],publishedDate:'2026-10-28T00:00:00Z'},{title:'Bad',url:'javascript:bad'},{title:'Three',url:'https://example.com/three'}]}),{status:200});}) as typeof fetch;
