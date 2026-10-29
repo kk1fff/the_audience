@@ -161,7 +161,7 @@ export type Job = { id: number; kind: 'post'|'reply'; source: 'notification'|'fe
 export function claimJob(): Job | null { return transaction(() => {
   const job = getDb().prepare(`SELECT j.id,j.kind,j.source,j.post_id AS postId,j.source_comment_id AS sourceCommentId,j.agent_id AS agentId,j.attempts,j.mock_miss AS mockMiss,j.mentioned_handle AS mentionedHandle,j.browse_id AS browseId,j.browse_reason AS browseReason,(SELECT COALESCE(MAX(c.id),0) FROM comments c WHERE c.post_id=j.post_id) AS seenCommentId FROM jobs j WHERE j.status='pending' AND j.due_at<=? ORDER BY j.due_at,j.id LIMIT 1`).get(Date.now()) as Job | undefined;
   if (!job) return null;
-  getDb().prepare(`UPDATE jobs SET status='running',attempts=attempts+1,visited_at=CASE WHEN source='browse' THEN COALESCE(visited_at,?) ELSE visited_at END WHERE id=?`).run(Date.now(),job.id);
+  getDb().prepare("UPDATE jobs SET status='running',attempts=attempts+1 WHERE id=?").run(job.id);
   getDb().prepare(`INSERT INTO job_attempts(job_id,started_at,status) VALUES(?,?,'running')`).run(job.id,Date.now());
   return job;
 }); }
@@ -174,7 +174,10 @@ export function getContext(job: Job) {
   const commentImages=fullThread?commentRows.flatMap(comment=>getImagesForComment(comment.id).map(image=>({commentId:comment.id,image}))):[];
   const comments=fullThread?commentRows.map(comment=>({...comment,images:commentImages.filter(entry=>entry.commentId===comment.id).map(({image})=>({id:image.id,description:image.description}))})):commentRows;
   const reply=job.sourceCommentId ? getDb().prepare(`SELECT c.text,c.agent_id AS sourceAgentId,source.name AS sourceAgentName,p.agent_id AS parentAgentId,a.name AS parentAgentName FROM comments c LEFT JOIN agents source ON source.id=c.agent_id LEFT JOIN comments p ON p.id=c.parent_id LEFT JOIN agents a ON a.id=p.agent_id WHERE c.id=?`).get(job.sourceCommentId) as {text:string;sourceAgentId:string|null;sourceAgentName:string|null;parentAgentId:string|null;parentAgentName:string|null}|undefined : undefined;
-  return { agent, memory: memory?.content || '', post: post?.text || '', comments, sourceCommentId: job.sourceCommentId, sourceAgentName:reply?.sourceAgentName||null,mentionedHandle:job.mentionedHandle, mentionText:job.kind==='post'?post?.text||'':reply?.text||'',replyToAgentName:reply?.parentAgentName||null,replyToOwnComment:reply?.parentAgentId===job.agentId,browseReason:job.browseReason, images: [...getImagesForPost(job.postId), ...(fullThread?commentImages.map(entry=>entry.image):job.sourceCommentId ? getImagesForComment(job.sourceCommentId) : [])] };
+  const context={ agent, memory: memory?.content || '', post: post?.text || '', comments, sourceCommentId: job.sourceCommentId, sourceAgentName:reply?.sourceAgentName||null,mentionedHandle:job.mentionedHandle, mentionText:job.kind==='post'?post?.text||'':reply?.text||'',replyToAgentName:reply?.parentAgentName||null,replyToOwnComment:reply?.parentAgentId===job.agentId,browseReason:job.browseReason, images: [...getImagesForPost(job.postId), ...(fullThread?commentImages.map(entry=>entry.image):job.sourceCommentId ? getImagesForComment(job.sourceCommentId) : [])] };
+  // A claimed job may fail before reading the thread; record the read only after context loads.
+  if(job.source==='browse') getDb().prepare("UPDATE jobs SET visited_at=COALESCE(visited_at,?) WHERE id=? AND status='running'").run(Date.now(),job.id);
+  return context;
 }
 export function markDelivered(job:Job,now=Date.now()) { getDb().prepare('UPDATE jobs SET delivered_at=COALESCE(delivered_at,?) WHERE id=?').run(now,job.id); }
 export function isStoppedPeer(job:Job) { return job.source==='peer' && (getDb().prepare('SELECT following FROM agent_thread_state WHERE agent_id=? AND post_id=?').get(job.agentId,job.postId) as {following:number}|undefined)?.following===0; }
@@ -248,5 +251,18 @@ export function getActivityPage(beforePostId: number | null = null, pageSize = 5
 }
 export function getActivityAttempts(jobId:number) { return getDb().prepare('SELECT id,started_at AS startedAt,finished_at AS finishedAt,status,error,system_text AS systemText,user_text AS userText,prompt_text AS legacyPromptText,provider,model,model_response AS modelResponse,memory_before AS memoryBefore,memory_after AS memoryAfter,memory_evaluation AS memoryEvaluation,image_ids AS imageIds FROM job_attempts WHERE job_id=? ORDER BY id').all(jobId); }
 export function getBrowseSchedule() { return getDb().prepare(`SELECT a.id AS agentId,a.name AS agentName,a.avatar_color AS avatarColor,f.next_check_at AS nextBrowseAt FROM agent_feed_checks f JOIN agents a ON a.id=f.agent_id WHERE a.enabled=1 ORDER BY f.next_check_at,a.name`).all(); }
-export function getRecentEmptyBrowses(limit=8) { return getDb().prepare(`SELECT b.id,b.agent_id AS agentId,a.name AS agentName,b.completed_at AS completedAt FROM browse_runs b JOIN agents a ON a.id=b.agent_id WHERE b.visit_count=0 AND b.completed_at IS NOT NULL ORDER BY b.completed_at DESC,b.id DESC LIMIT ?`).all(Math.min(20,Math.max(1,limit))); }
+export function getRecentBrowseResults(limit=5) {
+  const runs=getDb().prepare(`SELECT b.id,b.agent_id AS agentId,a.name AS agentName,b.started_at AS startedAt,b.completed_at AS completedAt FROM browse_runs b JOIN agents a ON a.id=b.agent_id ORDER BY b.started_at DESC,b.id DESC LIMIT ?`).all(Math.min(20,Math.max(1,limit))) as {id:number;agentId:string;agentName:string;startedAt:number;completedAt:number|null}[];
+  if(!runs.length) return [];
+  const jobs=getDb().prepare(`SELECT j.browse_id AS browseId,j.post_id AS postId,j.status,j.visited_at AS visitedAt,p.text AS postText,
+    (SELECT i.id FROM images i WHERE i.post_id=j.post_id AND i.comment_id IS NULL ORDER BY i.rowid LIMIT 1) AS postImageId
+    FROM jobs j LEFT JOIN posts p ON p.id=j.post_id WHERE j.browse_id IN (${runs.map(()=>'?').join(',')}) ORDER BY j.id`).all(...runs.map(run=>run.id)) as {browseId:number;postId:number;status:string;visitedAt:number|null;postText:string|null;postImageId:string|null}[];
+  return runs.map(run=>{
+    const entries=jobs.filter(job=>job.browseId===run.id);
+    return {...run,queuedCount:entries.length,pendingCount:entries.filter(job=>job.status==='pending').length,runningCount:entries.filter(job=>job.status==='running').length,
+      completedCount:entries.filter(job=>job.status==='done').length,failedBeforeReadCount:entries.filter(job=>job.status==='failed'&&job.visitedAt===null).length,
+      failedAfterReadCount:entries.filter(job=>job.status==='failed'&&job.visitedAt!==null).length,
+      visits:entries.filter(job=>job.status==='done'&&job.visitedAt!==null&&job.postText!==null).map(job=>({postId:job.postId,postText:job.postText!,postImageId:job.postImageId,visitedAt:job.visitedAt!}))};
+  });
+}
 export function recoverJobs() { transaction(() => { const running=getDb().prepare("SELECT id FROM jobs WHERE status='running'").all() as {id:number}[];for(const job of running){getDb().prepare("UPDATE job_attempts SET status='interrupted',finished_at=?,error='Worker restarted' WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?) AND status='running'").run(Date.now(),job.id);getDb().prepare("UPDATE jobs SET status='pending',due_at=? WHERE id=?").run(Date.now(),job.id);} }); }

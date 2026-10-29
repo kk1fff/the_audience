@@ -1,0 +1,55 @@
+import {test} from 'node:test';
+import {strict as assert} from 'node:assert';
+import {mkdtempSync,mkdirSync,writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
+
+test('recent browse results use actual job progress and completed reads independently of post pagination',async()=>{
+  const root=mkdtempSync(join(tmpdir(),'social-browse-results-'));const agents=join(root,'agents');mkdirSync(join(agents,'one'),{recursive:true});
+  writeFileSync(join(agents,'one','profile.json'),JSON.stringify({name:'One',handle:'one',persona:'Friendly',enabled:true}));
+  process.env.DATABASE_PATH=join(root,'social.sqlite');process.env.AGENTS_DIR=agents;
+  const store=await import('./index.ts');store.syncAgents();
+  const db=new DatabaseSync(process.env.DATABASE_PATH);
+  assert.deepEqual(store.getRecentBrowseResults(),[]);
+  const posts=Array.from({length:7},(_,index)=>store.createPost(index===0?'':'Post '+index));
+  db.prepare("UPDATE jobs SET due_at=9999999999999 WHERE source='notification'").run();
+  const image=store.storeImage(Buffer.from([0xff,0xd8,0xff]),'image/jpeg','A view');
+  db.prepare('UPDATE images SET post_id=? WHERE id=?').run(posts[0].id,image.id);
+  const ids:number[]=[];const now=Date.now();
+  for(let i=0;i<6;i++) ids.push(Number(db.prepare('INSERT INTO browse_runs(agent_id,scheduled_at,started_at,completed_at,visit_count) VALUES(?,?,?,?,?)').run('one',now+i,now+i,i===0?now+i:null,i===0?99:2).lastInsertRowid));
+  const job=(run:number,post:number,status:string,visitedAt:number|null)=>db.prepare("INSERT INTO jobs(kind,post_id,agent_id,due_at,status,source,browse_id,visited_at) VALUES('post',?,'one',0,?,'browse',?,?)").run(post,status,run,visitedAt);
+  job(ids[1],posts[0].id,'done',now);job(ids[1],posts[1].id,'done',now);
+  job(ids[2],posts[2].id,'done',now);job(ids[2],posts[3].id,'failed',null);
+  job(ids[3],posts[4].id,'failed',null);
+  job(ids[4],posts[5].id,'pending',null);
+  job(ids[5],posts[6].id,'running',null);job(ids[5],posts[0].id,'done',now);
+  const results=store.getRecentBrowseResults();
+  assert.deepEqual(results.map(run=>run.id),ids.slice(1).reverse());assert.equal(results.length,5);
+  assert.equal(results[0].runningCount,1);assert.equal(results[0].completedCount,1);assert.equal(results[0].visits.length,1);
+  assert.equal(results[1].pendingCount,1);assert.equal(results[2].failedBeforeReadCount,1);assert.equal(results[2].visits.length,0);
+  assert.equal(results[3].failedBeforeReadCount,1);assert.deepEqual(results[3].visits.map(visit=>visit.postId),[posts[2].id]);
+  assert.deepEqual(results[4].visits.map(visit=>visit.postId),[posts[0].id,posts[1].id]);
+  assert.equal(results[4].visits[0].postText,'');assert.equal(results[4].visits[0].postImageId,image.id);
+  const empty=store.getRecentBrowseResults(6).at(-1)!;assert.equal(empty.queuedCount,0);assert.equal(empty.visits.length,0);
+  db.prepare('UPDATE jobs SET status=\'done\',visited_at=? WHERE browse_id=? AND status=\'running\'').run(now,ids[5]);
+  assert.equal(store.getRecentBrowseResults()[0].runningCount,0);
+  assert.equal(store.getRecentBrowseResults()[0].visits.length,2);
+  assert.equal(store.getActivityPage().items.length>0,true);
+});
+
+test('browse read timestamp begins after context is loaded, including retries',async()=>{
+  const root=mkdtempSync(join(tmpdir(),'social-browse-read-'));const agents=join(root,'agents');mkdirSync(join(agents,'one'),{recursive:true});
+  writeFileSync(join(agents,'one','profile.json'),JSON.stringify({name:'One',handle:'one',persona:'Friendly',enabled:true}));
+  process.env.DATABASE_PATH=join(root,'social.sqlite');process.env.AGENTS_DIR=agents;
+  const store=await import(`./index.ts?read=${Date.now()}`);store.syncAgents();const db=new DatabaseSync(process.env.DATABASE_PATH);
+  const post=store.createPost('Read me');db.prepare("UPDATE jobs SET status='not_selected',outcome='not_selected' WHERE source='notification'").run();
+  const now=Date.now();db.prepare('UPDATE agent_feed_checks SET next_check_at=?').run(now-1);assert.equal(store.scheduleFeedChecks(now),1);
+  const job=store.claimJob();assert.ok(job);assert.equal(job.source,'browse');
+  assert.equal((db.prepare('SELECT visited_at AS visitedAt FROM jobs WHERE id=?').get(job.id) as any).visitedAt,null);
+  store.getContext(job);const readAt=(db.prepare('SELECT visited_at AS visitedAt FROM jobs WHERE id=?').get(job.id) as any).visitedAt;assert.ok(readAt);
+  store.failJob(job,'model unavailable');
+  db.prepare('UPDATE jobs SET due_at=0 WHERE id=?').run(job.id);
+  const retry=store.claimJob();assert.ok(retry);store.getContext(retry);
+  assert.equal((db.prepare('SELECT visited_at AS visitedAt FROM jobs WHERE id=?').get(job.id) as any).visitedAt,readAt);
+});

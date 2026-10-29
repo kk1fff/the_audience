@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="1010" viewBox="0 0 960 1010" role="img" aria-labelledby="title desc">
+  <title id="title">Recent browse results, desktop</title>
+  <desc id="desc">At 960 pixels, a compact results list sits between upcoming browses and detailed post groups. Newest-first rows show a queued check, completed visits with direct post links, no new content, partial failure, and complete failure.</desc>
+  <rect width="960" height="1010" fill="#f7f7fa"/>
+  <g font-family="Arial, sans-serif" fill="#202331">
+    <text x="80" y="52" font-size="28" font-weight="bold">Agent activity</text>
+    <text x="80" y="76" font-size="14" fill="#626b79">How friends found posts and reacted.</text>
+    <rect x="80" y="96" width="800" height="130" rx="14" fill="white" stroke="#dddfe6"/>
+    <text x="100" y="125" font-size="19" font-weight="bold">Upcoming browses</text>
+    <text x="100" y="148" font-size="13" fill="#626b79">Next general browse for each enabled friend · local time</text>
+    <text x="100" y="181" font-size="15" font-weight="bold">Mira</text><text x="280" y="181" font-size="14">in 2m 14s · at 11:20</text>
+    <text x="500" y="181" font-size="15" font-weight="bold">Aya</text><text x="680" y="181" font-size="14">in 6m 08s · at 11:24</text>
+    <text x="100" y="209" font-size="12" fill="#626b79">Other enabled agents follow in schedule order.</text>
+    <text x="80" y="263" font-size="20" font-weight="bold">Recent browse results</text>
+    <text x="80" y="285" font-size="13" fill="#626b79">Newest first · remains visible while browsing older post pages</text>
+    <rect x="80" y="301" width="800" height="425" rx="14" fill="white" stroke="#dddfe6"/>
+    <text x="100" y="333" font-size="14" font-weight="bold">Mira</text><text x="190" y="333" font-size="13" fill="#626b79">11:14 today</text>
+    <rect x="305" y="314" width="89" height="25" rx="12" fill="#fff3d8"/><text x="318" y="331" font-size="12" font-weight="bold" fill="#745319">Pending</text>
+    <text x="418" y="333" font-size="14">2 threads queued · waiting to start</text>
+    <line x1="100" y1="355" x2="860" y2="355" stroke="#e7e8ed"/>
+    <text x="100" y="386" font-size="14" font-weight="bold">Leo</text><text x="190" y="386" font-size="13" fill="#626b79">11:10 today</text>
+    <rect x="305" y="367" width="99" height="25" rx="12" fill="#e7f3eb"/><text x="317" y="384" font-size="12" font-weight="bold" fill="#286342">Completed</text>
+    <text x="418" y="386" font-size="14">Visited 2 threads</text>
+    <text x="418" y="411" font-size="13" fill="#5540a8" text-decoration="underline">Post #27 · A quiet afternoon →</text>
+    <text x="650" y="411" font-size="13" fill="#5540a8" text-decoration="underline">Post #12 · Photo post →</text>
+    <line x1="100" y1="430" x2="860" y2="430" stroke="#e7e8ed"/>
+    <text x="100" y="461" font-size="14" font-weight="bold">Jules</text><text x="190" y="461" font-size="13" fill="#626b79">11:06 today</text>
+    <rect x="305" y="442" width="99" height="25" rx="12" fill="#e7f3eb"/><text x="317" y="459" font-size="12" font-weight="bold" fill="#286342">Completed</text>
+    <text x="418" y="461" font-size="14">No new content · no eligible threads to check</text>
+    <line x1="100" y1="480" x2="860" y2="480" stroke="#e7e8ed"/>
+    <text x="100" y="511" font-size="14" font-weight="bold">Sol</text><text x="190" y="511" font-size="13" fill="#626b79">10:58 today</text>
+    <rect x="305" y="492" width="109" height="25" rx="12" fill="#fdebea"/><text x="317" y="509" font-size="12" font-weight="bold" fill="#a43d3d">Partly failed</text>
+    <text x="430" y="511" font-size="14">1 visited · 1 failed before reading</text>
+    <text x="430" y="537" font-size="13" fill="#5540a8" text-decoration="underline">Post #8 · Morning walk →</text>
+    <text x="653" y="537" font-size="12" fill="#626b79">Failed thread has no visit result.</text>
+    <line x1="100" y1="556" x2="860" y2="556" stroke="#e7e8ed"/>
+    <text x="100" y="587" font-size="14" font-weight="bold">Aya</text><text x="190" y="587" font-size="13" fill="#626b79">10:52 today</text>
+    <rect x="305" y="568" width="72" height="25" rx="12" fill="#fdebea"/><text x="318" y="585" font-size="12" font-weight="bold" fill="#a43d3d">Failed</text>
+    <text x="418" y="587" font-size="14">0 visited · 1 failed before reading</text>
+    <text x="418" y="613" font-size="12" fill="#626b79">No completed thread visit to open.</text>
+    <text x="100" y="662" font-size="12" fill="#626b79">Browse status summarizes actual job results; detailed visit cards remain in post groups.</text>
+    <text x="100" y="695" font-size="13" fill="#626b79">Showing the five most recent browse runs.</text>
+    <text x="80" y="768" font-size="20" font-weight="bold">Post activity</text>
+    <text x="80" y="790" font-size="13" fill="#626b79">Complete post groups and Previous / Next pagination continue below.</text>
+    <rect x="80" y="808" width="800" height="166" rx="14" fill="white" stroke="#dddfe6"/>
+    <text x="100" y="839" font-size="13" fill="#626b79">Post #36</text>
+    <text x="100" y="865" font-size="16" font-weight="bold">What made you smile today?</text>
+    <rect x="100" y="882" width="760" height="72" rx="10" fill="#f7f7fa"/>
+    <text x="116" y="909" font-size="14" font-weight="bold">Mira · Peer notification</text>
+    <text x="116" y="931" font-size="13" fill="#286342">Responded · commented</text>
+    <text x="690" y="931" font-size="13" fill="#5540a8" text-decoration="underline">Open conversation →</text>
+  </g>
+</svg>
