@@ -14,3 +14,12 @@ test('captured prompt and vision requests include expected content',()=>{
   const openai=makeRequest('openai_compatible','vision-model',messages,[image]) as any;
   assert.equal(openai.messages[1].content[0].text,messages.user);assert.match(openai.messages[1].content[1].image_url.url,/^data:image\/png;base64,/);
 });
+test('post prompt describes how the agent found the post',()=>{
+  const context={agent:{id:'mira',name:'Mira',persona:'Thoughtful'},memory:'',post:'A new post',comments:[],sourceCommentId:null,images:[]};
+  const notified=buildMessages(context,'post','notification').user;
+  const feedCheck=buildMessages(context,'post','feed').user;
+  assert.match(notified,/You were notified about this post/);
+  assert.doesNotMatch(notified,/checking the feed/);
+  assert.match(feedCheck,/You found this post while checking the feed/);
+  assert.doesNotMatch(feedCheck,/You were notified/);
+});
