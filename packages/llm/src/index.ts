@@ -3,9 +3,9 @@ import type { Decision } from '@social/core';
 export type ImageInput={id:string;mimeType:string;path:string};
 export type Context={agent:{id:string;name:string;persona:string};memory:string;post:string;comments:unknown[];sourceCommentId:number|null;images:ImageInput[]};
 export type Messages={system:string;user:string};
-export function buildMessages(context:Context,kind:'post'|'reply'):Messages { return {
+export function buildMessages(context:Context,kind:'post'|'reply',source:'notification'|'feed'='notification'):Messages { return {
   system:`You are ${context.agent.name}. Persona: ${context.agent.persona}. Private memory: ${context.memory}. You are a friend in The Audience. Decide whether to like or comment, and evaluate whether this interaction is worth remembering. Return only JSON: {"like":boolean,"comment":string|null,"memory":string|null,"memoryEvaluation":string|null}. Keep comments under 280 characters and memory updates short. Do not create top-level posts or repost.`,
-  user:`Post: ${context.post}. Thread: ${JSON.stringify(context.comments)}. Attached images: ${context.images.map(i=>i.id).join(', ')||'none'}. ${kind==='reply'?`The owner replied to your comment. Target comment ID: ${context.sourceCommentId}. You may decide not to reply.`:'You were notified about this post. You may decide not to react.'}`
+  user:`Post: ${context.post}. Thread: ${JSON.stringify(context.comments)}. Attached images: ${context.images.map(i=>i.id).join(', ')||'none'}. ${kind==='reply'?`The owner replied to your comment. Target comment ID: ${context.sourceCommentId}. You may decide not to reply.`:source==='feed'?'You found this post while checking the feed. You may decide not to react.':'You were notified about this post. You may decide not to react.'}`
 }; }
 export function makeRequest(provider:'ollama'|'openai_compatible',model:string,messages:Messages,images:ImageInput[],think?:boolean) {
   const encoded=images.map(image=>({mimeType:image.mimeType,base64:readFileSync(image.path).toString('base64')}));

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 test('post, reply, and per-agent memory persist without duplicate reactions', async () => {
   const root=mkdtempSync(join(tmpdir(),'social-test-')); const agents=join(root,'agents');mkdirSync(join(agents,'one'),{recursive:true});mkdirSync(join(agents,'two'));
-  for(const id of ['one','two','three','four','five','six','seven','eight']) { mkdirSync(join(agents,id),{recursive:true});writeFileSync(join(agents,id,'profile.json'),JSON.stringify({name:id,handle:id,persona:'Friendly',avatarColor:'#123456',enabled:true}));writeFileSync(join(agents,id,'memory.md'),'Initial'); }
+  for(const id of ['one','two','three','four','five','six','seven','eight']) { mkdirSync(join(agents,id),{recursive:true});writeFileSync(join(agents,id,'profile.json'),JSON.stringify({name:id,handle:id,persona:'Friendly',avatarColor:'#123456',enabled:true,...(id==='one'?{feedCheckIntervalMinutes:7}:id==='two'?{feedCheckIntervalMinutes:11}:{})}));writeFileSync(join(agents,id,'memory.md'),'Initial'); }
   process.env.DATABASE_PATH=join(root,'social.sqlite');process.env.AGENTS_DIR=agents;
   const store=await import('./index.ts');store.syncAgents();
   const image=store.storeImage(Buffer.from([0xff,0xd8,0xff]),'image/jpeg');
@@ -33,5 +33,34 @@ test('post, reply, and per-agent memory persist without duplicate reactions', as
   assert.equal((store.getActivity().find((item:any)=>item.id===ignored.id) as any).outcome,'ignored');
   sql.prepare("UPDATE jobs SET due_at=9999999999999 WHERE status='pending'").run();const failedPost=store.createPost('Failure case');sql.prepare('UPDATE jobs SET due_at=0 WHERE post_id=?').run(failedPost.id);
   for(let attempt=0;attempt<3;attempt++){const failing=store.claimJob();assert.ok(failing);store.failJob(failing,'model unavailable');sql.prepare('UPDATE jobs SET due_at=0 WHERE id=?').run(failing.id);if(attempt===2){assert.equal((store.getActivity().find((item:any)=>item.id===failing.id) as any).outcome,'failed');assert.equal(store.getActivityAttempts(failing.id).length,3);}}
+
+  const intervals=sql.prepare("SELECT agent_id AS agentId,interval_ms AS intervalMs FROM agent_feed_checks WHERE agent_id IN ('one','two') ORDER BY agent_id").all() as any[];
+  assert.deepEqual(intervals.map(row=>row.intervalMs),[7*60_000,11*60_000]);
+  const allIntervals=(sql.prepare('SELECT interval_ms AS intervalMs FROM agent_feed_checks').all() as any[]).map(row=>row.intervalMs);
+  assert.equal(new Set(allIntervals).size,8);
+  const discoveryPost=store.createPost('Find this later');
+  sql.prepare("UPDATE jobs SET due_at=9999999999999 WHERE status='pending'").run();
+  const notificationRows=sql.prepare("SELECT id,agent_id AS agentId,status FROM jobs WHERE post_id=? AND source='notification'").all(discoveryPost.id) as any[];
+  const selected=notificationRows.find(row=>row.status==='pending');
+  const unselected=notificationRows.find(row=>row.status==='not_selected');
+  assert.ok(selected && unselected);
+  sql.prepare('UPDATE jobs SET due_at=0 WHERE id=?').run(selected.id);
+  const missedNotification=store.claimJob();assert.equal(missedNotification?.id,selected.id);
+  store.completeJob(missedNotification!,null,'missed');
+  const now=Date.now();
+  sql.prepare('UPDATE agent_feed_checks SET next_check_at=9999999999999').run();
+  sql.prepare('UPDATE agent_feed_checks SET next_check_at=? WHERE agent_id IN (?,?)').run(now-1,selected.agentId,unselected.agentId);
+  assert.equal(store.scheduleFeedChecks(now),2);
+  assert.equal(store.scheduleFeedChecks(now),0);
+  const discoveries=sql.prepare("SELECT id,agent_id AS agentId,discovered_at AS discoveredAt FROM jobs WHERE post_id=? AND source='feed' ORDER BY agent_id").all(discoveryPost.id) as any[];
+  assert.deepEqual(discoveries.map(row=>row.agentId).sort(),[selected.agentId,unselected.agentId].sort());
+  assert.ok(discoveries.every(row=>row.discoveredAt===now));
+  const persistedNext=sql.prepare('SELECT next_check_at AS nextCheckAt FROM agent_feed_checks WHERE agent_id=?').get(selected.agentId) as any;
+  store.syncAgents();store.recoverJobs();
+  assert.equal((sql.prepare('SELECT next_check_at AS nextCheckAt FROM agent_feed_checks WHERE agent_id=?').get(selected.agentId) as any).nextCheckAt,persistedNext.nextCheckAt);
+  assert.throws(()=>sql.prepare("INSERT INTO jobs(kind,post_id,agent_id,due_at,source) VALUES('post',?,?,?,'feed')").run(discoveryPost.id,selected.agentId,now),/UNIQUE/);
+  for(const discovery of discoveries){const claimed=store.claimJob();assert.ok(claimed);assert.equal(claimed.source,'feed');store.completeJob(claimed,{like:true,comment:'Found it',memory:null});}
+  assert.equal((sql.prepare("SELECT COUNT(*) AS count FROM comments WHERE post_id=? AND author_type='agent'").get(discoveryPost.id) as any).count,2);
+  assert.equal((sql.prepare("SELECT COUNT(*) AS count FROM jobs WHERE post_id=? AND source='feed'").get(discoveryPost.id) as any).count,2);
 
 });
