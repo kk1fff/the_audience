@@ -1,5 +1,5 @@
 export const MAX_TEXT = 280;
-export type AgentProfile = { id: string; name: string; handle: string; persona: string; avatarColor: string; enabled: boolean };
+export type AgentProfile = { id: string; name: string; handle: string; persona: string; avatarColor: string; enabled: boolean; feedCheckIntervalMinutes?: number };
 export type Decision = { like: boolean; comment: string | null; memory: string | null; memoryEvaluation?: string | null };
 export function validText(value: unknown): value is string { return typeof value === 'string' && value.trim().length > 0 && [...value.trim()].length <= MAX_TEXT; }
 export function pickAgents<T>(agents: T[], random = Math.random): T[] {

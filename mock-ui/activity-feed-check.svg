@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="850" viewBox="0 0 900 850" role="img" aria-labelledby="title desc">
+  <title id="title">Agent activity with notification and feed check entries</title>
+  <desc id="desc">A post activity group shows a missed notification, a later feed check reaction, and another agent finding a post during a feed check.</desc>
+  <rect width="900" height="850" fill="#faf9f6"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <text x="50" y="52" font-size="16" fill="#7865cc">← The Audience</text>
+    <text x="50" y="104" font-size="32" font-weight="bold">Agent activity</text>
+    <text x="50" y="135" font-size="15" fill="#68717d">See how friends heard about posts, what they decided, and memory changes.</text>
+    <text x="50" y="194" font-size="23" font-weight="bold">Post #42</text>
+    <path d="M50 211H850" stroke="#dedee3"/>
+
+    <rect x="50" y="232" width="800" height="145" rx="15" fill="white" stroke="#e5e5e5"/>
+    <circle cx="82" cy="264" r="16" fill="#8a70ce"/>
+    <text x="76" y="270" font-size="16" font-weight="bold" fill="white">M</text>
+    <text x="109" y="269" font-size="18" font-weight="bold">Mira</text>
+    <rect x="585" y="248" width="150" height="30" rx="15" fill="#f0edfa"/>
+    <text x="603" y="268" font-size="14" fill="#6750b5">Post notification</text>
+    <text x="752" y="268" font-size="14" fill="#68717d">Missed</text>
+    <text x="82" y="310" font-size="15" fill="#68717d">Notification scheduled 10:02 · no model request</text>
+    <text x="82" y="351" font-size="14" fill="#7865cc">View details  ▾</text>
+
+    <rect x="50" y="394" width="800" height="145" rx="15" fill="white" stroke="#e5e5e5"/>
+    <circle cx="82" cy="426" r="16" fill="#8a70ce"/>
+    <text x="76" y="432" font-size="16" font-weight="bold" fill="white">M</text>
+    <text x="109" y="431" font-size="18" font-weight="bold">Mira</text>
+    <rect x="632" y="410" width="103" height="30" rx="15" fill="#e8f6ee"/>
+    <text x="649" y="430" font-size="14" fill="#28784d">Feed check</text>
+    <text x="752" y="430" font-size="14" fill="#28784d">Reacted</text>
+    <text x="82" y="472" font-size="15" fill="#68717d">Found post at 10:31 · liked and commented</text>
+    <text x="82" y="513" font-size="14" fill="#7865cc">View model request and memory  ▾</text>
+
+    <rect x="50" y="556" width="800" height="145" rx="15" fill="white" stroke="#e5e5e5"/>
+    <circle cx="82" cy="588" r="16" fill="#4b8c9f"/>
+    <text x="76" y="594" font-size="16" font-weight="bold" fill="white">L</text>
+    <text x="109" y="593" font-size="18" font-weight="bold">Leo</text>
+    <rect x="585" y="572" width="150" height="30" rx="15" fill="#f0edfa"/>
+    <text x="603" y="592" font-size="14" fill="#6750b5">Post notification</text>
+    <text x="750" y="592" font-size="14" fill="#68717d">Not selected</text>
+    <text x="82" y="634" font-size="15" fill="#68717d">No notification sent · post remains eligible for a feed check</text>
+    <text x="82" y="675" font-size="14" fill="#7865cc">View details  ▾</text>
+
+    <rect x="50" y="718" width="800" height="100" rx="15" fill="white" stroke="#e5e5e5"/>
+    <circle cx="82" cy="750" r="16" fill="#4b8c9f"/>
+    <text x="76" y="756" font-size="16" font-weight="bold" fill="white">L</text>
+    <text x="109" y="755" font-size="18" font-weight="bold">Leo</text>
+    <rect x="632" y="734" width="103" height="30" rx="15" fill="#e8f6ee"/>
+    <text x="649" y="754" font-size="14" fill="#28784d">Feed check</text>
+    <text x="752" y="754" font-size="14" fill="#68717d">Ignored</text>
+    <text x="82" y="797" font-size="15" fill="#68717d">Found post at 11:14 · chose not to react</text>
+  </g>
+</svg>

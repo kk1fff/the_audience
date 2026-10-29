@@ -25,20 +25,45 @@ function getDb(): DatabaseSync {
   const attemptColumns = new Set((db.prepare('PRAGMA table_info(job_attempts)').all() as any[]).map(row=>row.name));
   for(const name of ['system_text','user_text','provider','model','model_response','memory_before','memory_after','memory_evaluation']) if(!attemptColumns.has(name)) db.exec(`ALTER TABLE job_attempts ADD COLUMN ${name} TEXT`);
   for(const [name,type] of [['mock_miss','INTEGER NOT NULL DEFAULT 0'],['memory_before','TEXT'],['memory_after','TEXT']] as const) if(!columns.has(name)) db.exec(`ALTER TABLE jobs ADD COLUMN ${name} ${type}`);
+  if(!columns.has('source')) db.exec("ALTER TABLE jobs ADD COLUMN source TEXT NOT NULL DEFAULT 'notification'");
+  if(!columns.has('discovered_at')) db.exec('ALTER TABLE jobs ADD COLUMN discovered_at INTEGER');
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS one_feed_job_per_post_agent ON jobs(post_id,agent_id) WHERE kind='post' AND source='feed';
+  CREATE TABLE IF NOT EXISTS agent_feed_checks (agent_id TEXT PRIMARY KEY REFERENCES agents(id), interval_ms INTEGER NOT NULL, next_check_at INTEGER NOT NULL);`);
   connection = db;
   return db;
 }
 function transaction<T>(fn: () => T): T { getDb().exec('BEGIN IMMEDIATE'); try { const result = fn(); getDb().exec('COMMIT'); return result; } catch (e) { getDb().exec('ROLLBACK'); throw e; } }
 export function syncAgents(directory = resolve(repoRoot, process.env.AGENTS_DIR || 'agents')) {
-  for (const id of readdirSync(directory)) {
-    const file = join(directory, id, 'profile.json'); if (!existsSync(file)) continue;
-    const profile = JSON.parse(readFileSync(file, 'utf8')) as Omit<AgentProfile, 'id'>;
+  const profiles=readdirSync(directory).flatMap(id=>{const file=join(directory,id,'profile.json');return existsSync(file)?[{id,profile:JSON.parse(readFileSync(file,'utf8')) as Omit<AgentProfile,'id'>}]:[];});
+  const reservedIntervals=new Set(profiles.map(({profile})=>profile.feedCheckIntervalMinutes).filter((minutes):minutes is number=>minutes!==undefined));
+  for (const {id,profile} of profiles) {
     if (!/^[a-z0-9_-]+$/.test(id) || !profile.name || !profile.handle || !profile.persona) throw new Error(`Invalid agent profile: ${id}`);
     getDb().prepare(`INSERT INTO agents(id,name,handle,persona,avatar_color,enabled) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,handle=excluded.handle,persona=excluded.persona,avatar_color=excluded.avatar_color,enabled=excluded.enabled`).run(id, profile.name, profile.handle, profile.persona, profile.avatarColor || '#777', profile.enabled === false ? 0 : 1);
     const seed = join(directory, id, 'memory.md');
     getDb().prepare('INSERT OR IGNORE INTO memories(agent_id,content) VALUES(?,?)').run(id, existsSync(seed) ? readFileSync(seed, 'utf8').trim() : '');
+    const configuredInterval = (profile as AgentProfile).feedCheckIntervalMinutes;
+    if (configuredInterval !== undefined && (!Number.isInteger(configuredInterval) || configuredInterval < 1 || configuredInterval > 1440)) throw new Error(`Invalid feed check interval: ${id}`);
+    const current = getDb().prepare('SELECT interval_ms AS intervalMs FROM agent_feed_checks WHERE agent_id=?').get(id) as { intervalMs: number } | undefined;
+    const usedIntervals = !current && configuredInterval === undefined ? (getDb().prepare('SELECT interval_ms AS intervalMs FROM agent_feed_checks').all() as {intervalMs:number}[]).map(row=>row.intervalMs) : [];
+    let defaultMinutes=5;while(usedIntervals.includes(defaultMinutes*60_000)||reservedIntervals.has(defaultMinutes)) defaultMinutes++;
+    const intervalMs = (configuredInterval ?? (current?.intervalMs ? current.intervalMs/60_000 : defaultMinutes)) * 60_000;
+    if (!current) getDb().prepare('INSERT INTO agent_feed_checks(agent_id,interval_ms,next_check_at) VALUES(?,?,?)').run(id,intervalMs,Date.now()+intervalMs);
+    else if (current.intervalMs !== intervalMs) getDb().prepare('UPDATE agent_feed_checks SET interval_ms=?,next_check_at=? WHERE agent_id=?').run(intervalMs,Date.now()+intervalMs,id);
   }
 }
+export function scheduleFeedChecks(now = Date.now()): number { return transaction(() => {
+  const due=getDb().prepare(`SELECT f.agent_id AS agentId,f.interval_ms AS intervalMs,f.next_check_at AS nextCheckAt FROM agent_feed_checks f JOIN agents a ON a.id=f.agent_id WHERE a.enabled=1 AND f.next_check_at<=? ORDER BY f.next_check_at,f.agent_id`).all(now) as {agentId:string;intervalMs:number;nextCheckAt:number}[];
+  let scheduled=0;
+  for(const check of due){
+    const post=getDb().prepare(`SELECT p.id FROM posts p JOIN jobs n ON n.post_id=p.id AND n.agent_id=? AND n.kind='post' AND n.source='notification' WHERE (n.status='not_selected' OR (n.status='done' AND n.outcome='missed')) AND NOT EXISTS(SELECT 1 FROM jobs f WHERE f.post_id=p.id AND f.agent_id=? AND f.kind='post' AND f.source='feed') ORDER BY p.id DESC LIMIT 1`).get(check.agentId,check.agentId) as {id:number}|undefined;
+    if(post){const memory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(check.agentId) as {content:string}|undefined)?.content||'';
+      getDb().prepare(`INSERT INTO jobs(kind,post_id,agent_id,due_at,status,outcome,mock_miss,memory_before,memory_after,source,discovered_at) VALUES('post',?,?,?,'pending',NULL,0,?,?,'feed',?)`).run(post.id,check.agentId,now,memory,memory,now);scheduled++;
+    }
+    const periods=Math.floor((now-check.nextCheckAt)/check.intervalMs)+1;
+    getDb().prepare('UPDATE agent_feed_checks SET next_check_at=? WHERE agent_id=?').run(check.nextCheckAt+periods*check.intervalMs,check.agentId);
+  }
+  return scheduled;
+}); }
 export function getAgents(): AgentProfile[] { return (getDb().prepare('SELECT id,name,handle,persona,avatar_color AS avatarColor,enabled FROM agents WHERE enabled=1 ORDER BY name').all() as any[]).map(a => ({ ...a, enabled: Boolean(a.enabled) })); }
 export function getFeed() {
   const posts = getDb().prepare('SELECT id,text,created_at AS createdAt FROM posts ORDER BY id DESC LIMIT 100').all() as any[];
@@ -65,9 +90,9 @@ export function createOwnerReply(parentId: number, text: string, imageIds: strin
   getDb().prepare('INSERT INTO jobs(kind,post_id,source_comment_id,agent_id,due_at,mock_miss,memory_before,memory_after) VALUES(?,?,?,?,?,?,?,?)').run('reply',parent.postId,id,parent.agentId,Date.now()+delayMs('reply'),id%2===0?1:0,memory,memory);
   return { id, postId: parent.postId, parentId, text };
 }); }
-export type Job = { id: number; kind: 'post'|'reply'; postId: number; sourceCommentId: number|null; agentId: string; attempts: number; mockMiss: boolean };
+export type Job = { id: number; kind: 'post'|'reply'; source: 'notification'|'feed'; postId: number; sourceCommentId: number|null; agentId: string; attempts: number; mockMiss: boolean };
 export function claimJob(): Job | null { return transaction(() => {
-  const job = getDb().prepare(`SELECT id,kind,post_id AS postId,source_comment_id AS sourceCommentId,agent_id AS agentId,attempts,mock_miss AS mockMiss FROM jobs WHERE status='pending' AND due_at<=? ORDER BY due_at,id LIMIT 1`).get(Date.now()) as Job | undefined;
+  const job = getDb().prepare(`SELECT id,kind,source,post_id AS postId,source_comment_id AS sourceCommentId,agent_id AS agentId,attempts,mock_miss AS mockMiss FROM jobs WHERE status='pending' AND due_at<=? ORDER BY due_at,id LIMIT 1`).get(Date.now()) as Job | undefined;
   if (!job) return null;
   getDb().prepare(`UPDATE jobs SET status='running',attempts=attempts+1 WHERE id=?`).run(job.id);
   getDb().prepare(`INSERT INTO job_attempts(job_id,started_at,status) VALUES(?,?,'running')`).run(job.id,Date.now());
@@ -105,6 +130,6 @@ function attachImages(ids:string[], postId:number, commentId:number|null) { for 
 export function storeImage(bytes:Buffer,mimeType:string): StoredImage { mkdirSync(uploadsDir,{recursive:true}); const id=randomUUID();const ext=mimeType==='image/png'?'png':mimeType==='image/webp'?'webp':'jpg';const fileName=`${id}.${ext}`;const filePath=join(uploadsDir,fileName);writeFileSync(filePath,bytes);try { getDb().prepare('INSERT INTO images(id,mime_type,byte_size,file_name) VALUES(?,?,?,?)').run(id,mimeType,bytes.length,fileName); } catch(error) { unlinkSync(filePath);throw error; }return {id,mimeType,byteSize:bytes.length,path:filePath}; }
 export function deleteUnattachedImages(ids:string[]) { for(const id of ids){const row=getDb().prepare('SELECT * FROM images WHERE id=? AND post_id IS NULL AND comment_id IS NULL').get(id) as any;if(row){getDb().prepare('DELETE FROM images WHERE id=?').run(id);try{unlinkSync(join(uploadsDir,row.file_name));}catch{}}} }
 export function recordPayload(job:Job,payload:{system:string;user:string;imageIds:string[];provider:string;model:string;memoryBefore:string}) { getDb().prepare(`UPDATE job_attempts SET system_text=?,user_text=?,image_ids=?,provider=?,model=?,memory_before=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(payload.system,payload.user,JSON.stringify(payload.imageIds),payload.provider,payload.model,payload.memoryBefore,job.id); }
-export function getActivity(limit=50,offset=0) { return getDb().prepare(`SELECT j.id,j.kind,j.post_id AS postId,j.source_comment_id AS sourceCommentId,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) ORDER BY j.id DESC LIMIT ? OFFSET ?`).all(Math.min(100,Math.max(1,limit)),Math.max(0,offset)); }
+export function getActivity(limit=50,offset=0) { return getDb().prepare(`SELECT j.id,j.kind,j.source,j.discovered_at AS discoveredAt,j.post_id AS postId,j.source_comment_id AS sourceCommentId,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) ORDER BY j.id DESC LIMIT ? OFFSET ?`).all(Math.min(100,Math.max(1,limit)),Math.max(0,offset)); }
 export function getActivityAttempts(jobId:number) { return getDb().prepare('SELECT id,started_at AS startedAt,finished_at AS finishedAt,status,error,system_text AS systemText,user_text AS userText,prompt_text AS legacyPromptText,provider,model,model_response AS modelResponse,memory_before AS memoryBefore,memory_after AS memoryAfter,memory_evaluation AS memoryEvaluation,image_ids AS imageIds FROM job_attempts WHERE job_id=? ORDER BY id').all(jobId); }
 export function recoverJobs() { transaction(() => { const running=getDb().prepare("SELECT id FROM jobs WHERE status='running'").all() as {id:number}[];for(const job of running){getDb().prepare("UPDATE job_attempts SET status='interrupted',finished_at=?,error='Worker restarted' WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?) AND status='running'").run(Date.now(),job.id);getDb().prepare("UPDATE jobs SET status='pending',due_at=? WHERE id=?").run(Date.now(),job.id);} }); }
