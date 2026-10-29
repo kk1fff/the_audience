@@ -32,3 +32,15 @@ test('unresolved mentions stay visible while ordinary misses remain grouped', ()
   assert.deepEqual(result.other.map(item=>item.id),[1]);
   assert.deepEqual([...result.counts],[['missed',1]]);
 });
+
+test('browse visits remain visible after an ignored decision while reactions stay first',()=>{
+  const items=[
+    {id:1,source:'notification',status:'not_selected',outcome:'not_selected',completedAt:null,discoveredAt:null,dueAt:1},
+    {id:2,source:'browse',status:'done',outcome:'ignored',completedAt:20,discoveredAt:10,visitedAt:11,dueAt:9},
+    {id:3,source:'browse',status:'done',outcome:'commented',completedAt:30,discoveredAt:10,visitedAt:11,dueAt:9},
+  ];
+  const result=organizePostActivity(items);
+  assert.deepEqual(result.reactions.map(item=>item.id),[3]);
+  assert.deepEqual(result.visits.map(item=>item.id),[2]);
+  assert.deepEqual(result.other.map(item=>item.id),[1]);
+});

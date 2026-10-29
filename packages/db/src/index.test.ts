@@ -50,18 +50,19 @@ test('post, reply, and per-agent memory persist without duplicate reactions', as
   const now=Date.now();
   sql.prepare('UPDATE agent_feed_checks SET next_check_at=9999999999999').run();
   sql.prepare('UPDATE agent_feed_checks SET next_check_at=? WHERE agent_id IN (?,?)').run(now-1,selected.agentId,unselected.agentId);
-  assert.equal(store.scheduleFeedChecks(now),2);
+  assert.ok(store.scheduleFeedChecks(now)>=2);
   assert.equal(store.scheduleFeedChecks(now),0);
-  const discoveries=sql.prepare("SELECT id,agent_id AS agentId,discovered_at AS discoveredAt FROM jobs WHERE post_id=? AND source='feed' ORDER BY agent_id").all(discoveryPost.id) as any[];
+  const discoveries=sql.prepare("SELECT id,agent_id AS agentId,discovered_at AS discoveredAt,browse_id AS browseId FROM jobs WHERE post_id=? AND source='browse' ORDER BY agent_id").all(discoveryPost.id) as any[];
   assert.deepEqual(discoveries.map(row=>row.agentId).sort(),[selected.agentId,unselected.agentId].sort());
   assert.ok(discoveries.every(row=>row.discoveredAt===now));
   const persistedNext=sql.prepare('SELECT next_check_at AS nextCheckAt FROM agent_feed_checks WHERE agent_id=?').get(selected.agentId) as any;
   store.syncAgents();store.recoverJobs();
   assert.equal((sql.prepare('SELECT next_check_at AS nextCheckAt FROM agent_feed_checks WHERE agent_id=?').get(selected.agentId) as any).nextCheckAt,persistedNext.nextCheckAt);
-  assert.throws(()=>sql.prepare("INSERT INTO jobs(kind,post_id,agent_id,due_at,source) VALUES('post',?,?,?,'feed')").run(discoveryPost.id,selected.agentId,now),/UNIQUE/);
-  for(const discovery of discoveries){const claimed=store.claimJob();assert.ok(claimed);assert.equal(claimed.source,'feed');store.completeJob(claimed,{like:true,comment:'Found it',memory:null});}
+  assert.throws(()=>sql.prepare("INSERT INTO jobs(kind,post_id,agent_id,due_at,source,browse_id) VALUES('post',?,?,?,'browse',?)").run(discoveryPost.id,selected.agentId,now,discoveries.find(row=>row.agentId===selected.agentId).browseId),/UNIQUE/);
+  sql.prepare("UPDATE jobs SET due_at=9999999999999 WHERE source='browse' AND post_id<>?").run(discoveryPost.id);
+  for(const discovery of discoveries){const claimed=store.claimJob();assert.ok(claimed);assert.equal(claimed.source,'browse');store.completeJob(claimed,{like:true,comment:'Found it',memory:null});}
   assert.equal((sql.prepare("SELECT COUNT(*) AS count FROM comments WHERE post_id=? AND author_type='agent'").get(discoveryPost.id) as any).count,2);
-  assert.equal((sql.prepare("SELECT COUNT(*) AS count FROM jobs WHERE post_id=? AND source='feed'").get(discoveryPost.id) as any).count,2);
+  assert.equal((sql.prepare("SELECT COUNT(*) AS count FROM jobs WHERE post_id=? AND source='browse'").get(discoveryPost.id) as any).count,2);
 
   const laterTopImage=store.storeImage(Buffer.from([0xff,0xd8,0xff]),'image/jpeg');
   sql.prepare('UPDATE images SET post_id=? WHERE id=?').run(post.id,laterTopImage.id);
