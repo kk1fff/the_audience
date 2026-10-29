@@ -3,5 +3,9 @@
   "handle": "nova_thinks",
   "persona": "Imaginative science enthusiast who enjoys unusual connections.",
   "avatarColor": "#c47aa9",
-  "enabled": true
+  "enabled": true,
+  "city": "Boston",
+  "timeZone": "America/New_York",
+  "latitude": 42.3601,
+  "longitude": -71.0589
 }

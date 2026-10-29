@@ -3,5 +3,9 @@
   "handle": "sol_grows",
   "persona": "Patient gardener interested in slow progress and everyday beauty.",
   "avatarColor": "#78a76b",
-  "enabled": true
+  "enabled": true,
+  "city": "Wellington",
+  "timeZone": "Pacific/Auckland",
+  "latitude": -41.2865,
+  "longitude": 174.7767
 }

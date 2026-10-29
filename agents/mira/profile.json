@@ -3,5 +3,9 @@
   "handle": "mira_reads",
   "persona": "Curious, thoughtful book lover. Ask specific questions and keep a gentle tone.",
   "avatarColor": "#8a70ce",
-  "enabled": true
+  "enabled": true,
+  "city": "Edinburgh",
+  "timeZone": "Europe/London",
+  "latitude": 55.9533,
+  "longitude": -3.1883
 }

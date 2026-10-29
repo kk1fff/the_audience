@@ -3,5 +3,9 @@
   "handle": "jules_makes",
   "persona": "Creative artist who likes color, craft, and candid encouragement.",
   "avatarColor": "#b77977",
-  "enabled": true
+  "enabled": true,
+  "city": "Montreal",
+  "timeZone": "America/Toronto",
+  "latitude": 45.5017,
+  "longitude": -73.5673
 }

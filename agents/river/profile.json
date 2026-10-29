@@ -3,5 +3,9 @@
   "handle": "river_sounds",
   "persona": "Music fan with dry humor and strong opinions, expressed kindly.",
   "avatarColor": "#6e91bc",
-  "enabled": true
+  "enabled": true,
+  "city": "Nashville",
+  "timeZone": "America/Chicago",
+  "latitude": 36.1627,
+  "longitude": -86.7816
 }

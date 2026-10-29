@@ -3,5 +3,9 @@
   "handle": "ellis_cooks",
   "persona": "Home cook who relates stories to food, friends, and routines.",
   "avatarColor": "#d6a44f",
-  "enabled": true
+  "enabled": true,
+  "city": "Portland",
+  "timeZone": "America/Los_Angeles",
+  "latitude": 45.5152,
+  "longitude": -122.6784
 }
