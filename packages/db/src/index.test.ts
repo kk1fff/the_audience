@@ -27,8 +27,8 @@ test('post, reply, and per-agent memory persist without duplicate reactions', as
   assert.equal(store.createOwnerReply(reply.id,'Invalid'),null);
   const agentResponse=store.getFeed()[0].comments.find((c:any)=>c.parentId===reply.id);assert.ok(agentResponse);
   const followup=store.createOwnerReply(agentResponse.id,'Another thought');assert.ok(followup);
-  sql.prepare("UPDATE jobs SET due_at=0 WHERE kind='reply' AND source='notification' AND status='pending'").run();const missed=store.claimJob();assert.ok(missed);store.completeJob(missed,null,'missed');
-  assert.equal((store.getActivity().find((item:any)=>item.id===missed.id) as any).outcome,'missed');assert.equal((store.getActivityAttempts(missed.id)[0] as any).systemText,null);
+  sql.prepare("UPDATE jobs SET due_at=0 WHERE kind='reply' AND source='notification' AND status='pending'").run();const silent=store.claimJob();assert.ok(silent);store.recordPayload(silent,{system:'Agent choice',user:'Owner follow-up',imageIds:[],provider:'mock',model:'mock',memoryBefore:''});store.completeJob(silent,{like:false,comment:null,memory:null});
+  assert.equal((store.getActivity().find((item:any)=>item.id===silent.id) as any).outcome,'ignored');assert.equal((store.getActivityAttempts(silent.id)[0] as any).systemText,'Agent choice');
   sql.prepare("UPDATE jobs SET due_at=0 WHERE kind='post' AND status='pending'").run();const ignored=store.claimJob();assert.ok(ignored);store.completeJob(ignored,{like:false,comment:null,memory:null});
   assert.equal((store.getActivity().find((item:any)=>item.id===ignored.id) as any).outcome,'ignored');
   sql.prepare("UPDATE jobs SET due_at=9999999999999 WHERE status='pending'").run();const failedPost=store.createPost('Failure case');sql.prepare('UPDATE jobs SET due_at=0 WHERE post_id=?').run(failedPost.id);

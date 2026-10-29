@@ -17,3 +17,8 @@ export function delayMs(kind: 'post' | 'reply', random = Math.random): number {
 export function validMessage(text: unknown, imageCount: number): boolean { return typeof text === 'string' && [...text.trim()].length <= MAX_TEXT && (text.trim().length > 0 || imageCount > 0) && imageCount >= 0 && imageCount <= 4; }
 
 export function shouldMiss(provider: string, mockMiss: boolean, random = Math.random): boolean { return provider === 'mock' ? mockMiss : random() < 0.25; }
+export type JobDelivery={kind:'post'|'reply';source:'notification'|'feed'|'mention'|'browse'|'peer'};
+export function isReliableDelivery(job:JobDelivery):boolean {return job.source==='mention'||job.kind==='reply'&&job.source==='notification';}
+export function shouldMissJob(job:JobDelivery,provider:string,mockMiss:boolean,random=Math.random):boolean {
+  return !isReliableDelivery(job)&&(job.source==='notification'||job.source==='peer')&&shouldMiss(provider,mockMiss,random);
+}
