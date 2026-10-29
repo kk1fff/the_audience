@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import {strict as assert} from 'node:assert';
-import {createBackgroundBuilder,extractPublicTopic} from './background.ts';
-import {buildMessages,type Context} from './index.ts';
+import {createBackgroundBuilder,extractPublicTopic,resolveRequestedTime} from './background.ts';
+import {buildMessages,decide,type Context} from './index.ts';
 import {createSearchProvider,ExaSearchProvider,normalizeSearchResults,type SearchProvider} from './search/index.ts';
 const context:Context={agent:{id:'aya',name:'Aya',persona:'Traveler',city:'Kyoto',timeZone:'Asia/Tokyo',latitude:35.0116,longitude:135.7681},memory:'Private memory',post:'I saw an aurora on a walk',comments:[],sourceCommentId:null,images:[]};
 const rss='<rss><channel><item><title>World science story</title><link>https://www.bbc.com/news/story</link><description>Short summary</description><pubDate>Wed, 28 Oct 2026 08:00:00 GMT</pubDate></item></channel></rss>';
@@ -66,7 +66,41 @@ test('agent-local date crosses UTC boundary and total outage leaves an ordinary 
   assert.match(tokyo.localDateTime,/January 1, 2026/);assert.match(portland.localDateTime,/December 31, 2025/);
   assert.ok(tokyo.items.every(item=>item.status==='unavailable'&&item.sourceUrl===null));
   const prompt=buildMessages({...context,post:'I walked outside today'},'post','notification',portland).user;
-  assert.match(prompt,/You were notified about this post/);assert.match(prompt,/Local time in Portland/);assert.doesNotMatch(prompt,/network offline|search offline/);
+  assert.match(prompt,/You were notified about this post/);assert.match(prompt,/"agentHome":\{"city":"Portland"/);assert.doesNotMatch(prompt,/network offline|search offline/);
+});
+
+test('Seattle reply time overrides River home and the older post at one captured instant',async()=>{
+  const instant=Date.UTC(2026,9,29,18);
+  const river:Context={...context,agent:{...context.agent,id:'river',name:'River',city:'Nashville',timeZone:'America/Chicago',latitude:36.1627,longitude:-86.7816},post:'I was in Boston this afternoon.',sourceCommentId:13,comments:[{id:12,authorType:'agent',text:'I hope the weather improves.'},{id:13,authorType:'owner',text:'Thanks! Is it already afternoon in Seattle right now, or still morning there?'}]};
+  const build=createBackgroundBuilder({fetcher:fixtureFetcher([]),now:()=>instant});
+  const bundle=await build(river);
+  assert.equal(bundle.recordedAt,instant);assert.equal(bundle.timeTargetStatus,'resolved');
+  assert.equal(bundle.requestedTime?.place,'Seattle');assert.equal(bundle.requestedTime?.period,'morning');
+  assert.match(bundle.requestedTime!.localDateTime,/11:00 AM/);assert.match(bundle.localDateTime,/1:00 PM/);
+  const messages=buildMessages(river,'reply','notification',bundle);
+  const time=JSON.parse(messages.user.match(/EXTERNAL_BACKGROUND_JSON_BEGIN\n([^\n]+)\nEXTERNAL_BACKGROUND_JSON_END/)![1]).timeContext;
+  assert.deepEqual({place:time.requestedPlace.place,period:time.requestedPlace.period,home:time.agentHome.city}, {place:'Seattle',period:'morning',home:'Nashville'});
+  assert.match(time.requestedPlace.dateTime,/11:00 AM/);assert.match(time.agentHome.dateTime,/1:00 PM/);
+  assert.match(messages.system,/never agentHome time/);assert.doesNotMatch(messages.user,/Boston.*PM/);
+  const previous={provider:process.env.LLM_PROVIDER,base:process.env.LLM_BASE_URL,model:process.env.LLM_MODEL};const originalFetch=globalThis.fetch;
+  process.env.LLM_PROVIDER='openai_compatible';process.env.LLM_BASE_URL='http://fake-model.test';process.env.LLM_MODEL='deterministic';
+  globalThis.fetch=(async(_url,init)=>{const request=JSON.parse(String(init?.body));assert.match(request.messages[1].content[0].text,/11:00 AM/);assert.match(request.messages[0].content,/requestedPlace/);return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({like:false,comment:'Seattle is still in the morning, around 11:00 AM.',follow:null,memory:null,memoryEvaluation:null})}}]}),{status:200});}) as typeof fetch;
+  try{const answer=await decide(river,'reply',messages);assert.match(answer.comment||'',/Seattle is still in the morning/);}finally{globalThis.fetch=originalFetch;for(const [key,value] of Object.entries({LLM_PROVIDER:previous.provider,LLM_BASE_URL:previous.base,LLM_MODEL:previous.model})){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
+});
+
+test('current owner message alone controls time target; unknown and ambiguous places never get guessed',async()=>{
+  const instant=Date.UTC(2027,0,1,0,30);const base:Context={...context,agent:{...context.agent,city:'Nashville',timeZone:'America/Chicago'},post:'Is it afternoon in Seattle?',sourceCommentId:4,comments:[{id:4,authorType:'owner',text:'Thanks for that.'}]};
+  assert.equal(resolveRequestedTime(base,instant).timeTargetStatus,'none');
+  assert.doesNotMatch(buildMessages(base,'reply','notification',await createBackgroundBuilder({fetcher:fixtureFetcher([]),now:()=>instant})(base)).user,/EXTERNAL_BACKGROUND_JSON_BEGIN/);
+  for(const [reply,status] of [['Is it afternoon in atlantis?','unverified'],['Is it afternoon in Seattle or Nashville?','ambiguous']] as const){
+    const current={...base,comments:[{id:4,authorType:'owner',text:reply}]};
+    const resolved=resolveRequestedTime(current,instant);assert.equal(resolved.timeTargetStatus,status);assert.equal(resolved.requestedTime,null);
+    const prompt=buildMessages(current,'reply','notification',await createBackgroundBuilder({fetcher:fixtureFetcher([]),now:()=>instant})(current));
+    assert.match(prompt.user,new RegExp(`"status":"${status}"`));assert.doesNotMatch(prompt.user,/"requestedPlace":\{"place"/);
+  }
+  assert.equal(resolveRequestedTime({...base,post:'',sourceCommentId:null,comments:[]},instant).timeTargetStatus,'none');
+  const winter=resolveRequestedTime({...base,sourceCommentId:null,post:'What time is it in Seattle?'},instant).requestedTime;
+  assert.match(winter!.localDateTime,/December 31, 2026 at 4:30 PM/);assert.equal(winter?.period,'afternoon');
 });
 
 test('search provider switches to Exa only with a key and bounds typed results',async()=>{

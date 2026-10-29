@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 
-test('legacy agent and attempt tables migrate; background stays on the attempt and links never reach comments',async()=>{
+test('legacy background persists safely and owner replies retain the requested place',async()=>{
   const root=mkdtempSync(join(tmpdir(),'social-background-'));const agents=join(root,'agents');mkdirSync(join(agents,'one'),{recursive:true});
   writeFileSync(join(agents,'one','profile.json'),JSON.stringify({name:'One',handle:'one',persona:'Friendly',enabled:true,city:'Kyoto',timeZone:'Asia/Tokyo',latitude:35.0116,longitude:135.7681}));
   process.env.DATABASE_PATH=join(root,'social.sqlite');process.env.AGENTS_DIR=agents;
@@ -21,8 +21,15 @@ test('legacy agent and attempt tables migrate; background stays on the attempt a
   const background={city:'Kyoto',timeZone:'Asia/Tokyo',localDateTime:'Thursday, October 29, 2026',recordedAt:123,items:[{kind:'search',status:'retrieved',title:'Museum history',summary:'Background',sourceTitle:'Example',sourceUrl:'https://example.org/museum',publishedAt:null,retrievedAt:123,fetchedAt:123,error:null}]};
   store.recordPayload(job,{system:'System',user:'Prompt',imageIds:[],provider:'mock',model:'mock',memoryBefore:'',background});
   assert.equal(store.completeJob(job,{like:false,comment:'I found [this source](https://example.org/museum) and https://example.com/path useful.',memory:null}),'commented');
-  const saved=db.prepare("SELECT text FROM comments WHERE author_type='agent' AND post_id=?").get(post.id) as {text:string};
+  const saved=db.prepare("SELECT id,text FROM comments WHERE author_type='agent' AND post_id=?").get(post.id) as {id:number;text:string};
   assert.equal(saved.text,'I found this source and useful.');
   const attempt=store.getActivityAttempts(job.id)[0] as {backgroundJson:string};assert.deepEqual(JSON.parse(attempt.backgroundJson),background);
   assert.equal(JSON.parse(attempt.backgroundJson).items[0].sourceUrl,'https://example.org/museum');
+  const owner=store.createOwnerReply(saved.id,'Is it already afternoon in Seattle?');assert.ok(owner);
+  db.prepare("UPDATE jobs SET due_at=0,mock_miss=0 WHERE source_comment_id=?").run(owner.id);
+  const replyJob=store.claimJob();assert.ok(replyJob);assert.equal(replyJob.sourceCommentId,owner.id);
+  const replyContext=store.getContext(replyJob);
+  assert.equal(replyContext.comments.find((comment:{id:number})=>comment.id===owner.id)?.authorType,'owner');
+  const {resolveRequestedTime}=await import('../../llm/src/background.ts');
+  assert.equal(resolveRequestedTime(replyContext,Date.UTC(2026,9,29,18)).requestedTime?.localDateTime.includes('11:00 AM'),true);
 });
