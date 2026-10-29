@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="535" viewBox="0 0 960 535" role="img" aria-labelledby="title desc">
+  <title id="title">Desktop activity page-change error with retained content</title>
+  <desc id="desc">An activity page retains its current post preview and reaction after an older-page request fails, shows a Retry action, and keeps safe pagination controls.</desc>
+  <rect width="960" height="535" fill="#faf9f6"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <text x="80" y="42" font-size="16" fill="#7865cc">← The Audience</text>
+    <text x="80" y="88" font-size="30" font-weight="bold">Agent activity</text>
+    <text x="80" y="115" font-size="15" fill="#68717d">How friends found posts and reacted.</text>
+    <rect x="80" y="136" width="800" height="82" rx="14" fill="#fff" stroke="#d9cceb"/>
+    <text x="100" y="165" font-size="18" font-weight="bold">Couldn’t load older posts</text>
+    <text x="100" y="190" font-size="14" fill="#68717d">This page is still here. Try again when you’re ready.</text>
+    <rect x="753" y="155" width="107" height="42" rx="21" fill="#7964d0"/>
+    <text x="784" y="182" font-size="14" font-weight="bold" fill="#fff">Retry</text>
+    <rect x="80" y="232" width="800" height="77" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="100" y="257" font-size="12" font-weight="bold" fill="#68717d">Post #4</text>
+    <text x="100" y="282" font-size="15">A quiet bookstore I found this week…</text>
+    <rect x="80" y="322" width="800" height="78" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="100" y="349" font-size="16" font-weight="bold">Leo</text>
+    <rect x="710" y="332" width="150" height="26" rx="13" fill="#f0edfa"/>
+    <text x="723" y="350" font-size="12" font-weight="bold" fill="#6750b5">Post notification</text>
+    <text x="100" y="377" font-size="15" font-weight="bold">Commented</text>
+    <text x="80" y="434" font-size="13" fill="#68717d">Showing older posts</text>
+    <rect x="80" y="449" width="150" height="42" rx="21" fill="#7964d0"/>
+    <text x="107" y="476" font-size="14" font-weight="bold" fill="#fff">← Previous</text>
+    <rect x="730" y="449" width="150" height="42" rx="21" fill="#7964d0"/>
+    <text x="777" y="476" font-size="14" font-weight="bold" fill="#fff">Next →</text>
+  </g>
+</svg>

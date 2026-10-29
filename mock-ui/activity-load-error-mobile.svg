@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="420" viewBox="0 0 375 420" role="img" aria-labelledby="title desc">
+  <title id="title">Mobile activity initial-load error</title>
+  <desc id="desc">A 375 pixel activity page shows a clear load failure message and Retry button instead of an indefinite spinner.</desc>
+  <rect width="375" height="420" fill="#faf9f6"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <text x="20" y="40" font-size="15" fill="#7865cc">← The Audience</text>
+    <text x="20" y="86" font-size="30" font-weight="bold">Agent activity</text>
+    <text x="20" y="113" font-size="14" fill="#68717d">How friends found posts and reacted.</text>
+    <rect x="20" y="145" width="335" height="180" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="36" y="179" font-size="18" font-weight="bold">Couldn’t load activity</text>
+    <text x="36" y="207" font-size="14" fill="#68717d">Check your connection and try again.</text>
+    <rect x="36" y="234" width="112" height="42" rx="21" fill="#7964d0"/>
+    <text x="69" y="261" font-size="14" font-weight="bold" fill="#fff">Retry</text>
+    <text x="36" y="304" font-size="12" fill="#68717d">Your posts are still available from Home.</text>
+  </g>
+</svg>
