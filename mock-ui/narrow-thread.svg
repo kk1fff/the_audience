@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="554" height="702" viewBox="0 0 554 702" role="img" aria-labelledby="title desc">
+  <title id="title">Readable nested conversation at a narrow feed width</title>
+  <desc id="desc">A 554 pixel feed shows a post, several nested replies with capped indentation, a parent cue, and a full-width reply field with actions below it.</desc>
+  <rect width="554" height="702" fill="#fff"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <rect width="554" height="55" fill="#faf9f6"/>
+    <text x="18" y="36" font-size="25" font-weight="bold" fill="#7865cc">✦</text>
+    <text x="55" y="35" font-size="17" font-weight="bold">The Audience</text>
+    <text x="522" y="35" font-size="19">Y</text>
+    <path d="M0 54H554" stroke="#e8e8e5"/>
+    <text x="19" y="91" font-size="20" font-weight="bold">Home</text>
+    <path d="M0 109H554" stroke="#ebebea"/>
+
+    <circle cx="36" cy="145" r="18" fill="#1d2530"/>
+    <text x="30" y="151" font-size="16" fill="#fff">Y</text>
+    <text x="67" y="140" font-size="15" font-weight="bold">You</text>
+    <text x="99" y="140" font-size="12" fill="#899099">@you · 10:02</text>
+    <text x="67" y="168" font-size="14">A thought worth sharing with my corner of the internet.</text>
+    <text x="67" y="193" font-size="12" fill="#777f89">♡ 3 likes       ♧ 4 replies</text>
+    <path d="M66 210H536" stroke="#eee"/>
+
+    <circle cx="85" cy="241" r="15" fill="#8a70ce"/>
+    <text x="80" y="246" font-size="13" fill="#fff">M</text>
+    <text x="112" y="236" font-size="14" font-weight="bold">Mira</text>
+    <text x="150" y="236" font-size="12" fill="#899099">@mira · 10:12</text>
+    <text x="112" y="260" font-size="14">That caught my attention. What happened next?</text>
+    <text x="112" y="280" font-size="12" fill="#7865cc">Reply</text>
+    <path d="M100 300H536" stroke="#f0f0f0"/>
+
+    <path d="M91 317V607" stroke="#c8bdec" stroke-width="2"/>
+    <circle cx="109" cy="332" r="15" fill="#1d2530"/>
+    <text x="104" y="337" font-size="13" fill="#fff">Y</text>
+    <text x="136" y="328" font-size="14" font-weight="bold">You</text>
+    <text x="168" y="328" font-size="12" fill="#899099">@you · 10:14</text>
+    <text x="136" y="352" font-size="14">The new part starts tomorrow.</text>
+    <path d="M126 375H536" stroke="#f0f0f0"/>
+
+    <circle cx="109" cy="407" r="15" fill="#4b8c9f"/>
+    <text x="104" y="412" font-size="13" fill="#fff">L</text>
+    <text x="136" y="401" font-size="14" font-weight="bold">Leo</text>
+    <text x="170" y="401" font-size="12" fill="#899099">@leo · 10:17</text>
+    <text x="136" y="421" font-size="12" fill="#7865cc">Replying to You</text>
+    <text x="136" y="445" font-size="14">I’ll be curious to see it.</text>
+    <text x="136" y="464" font-size="12" fill="#7865cc">Reply</text>
+    <path d="M126 483H536" stroke="#f0f0f0"/>
+
+    <circle cx="109" cy="515" r="15" fill="#8a70ce"/>
+    <text x="104" y="520" font-size="13" fill="#fff">M</text>
+    <text x="136" y="509" font-size="14" font-weight="bold">Mira</text>
+    <text x="177" y="509" font-size="12" fill="#899099">@mira · 10:20</text>
+    <text x="136" y="529" font-size="12" fill="#7865cc">Replying to Leo</text>
+    <text x="136" y="553" font-size="14">Same here. Keep us posted!</text>
+    <text x="136" y="573" font-size="12" fill="#7865cc">Reply</text>
+
+    <rect x="126" y="590" width="410" height="96" rx="12" fill="#faf9f6" stroke="#e8e3f4"/>
+    <text x="140" y="608" font-size="12" fill="#68717d">Reply to Mira</text>
+    <rect x="140" y="616" width="381" height="32" rx="16" fill="#fff" stroke="#d4d4de"/>
+    <text x="153" y="637" font-size="13" fill="#899099">Write a reply…</text>
+    <text x="141" y="672" font-size="12" font-weight="bold" fill="#7865cc">＋ Add images</text>
+    <rect x="458" y="653" width="64" height="27" rx="14" fill="#7964d0"/>
+    <text x="477" y="671" font-size="12" font-weight="bold" fill="#fff">Send</text>
+  </g>
+</svg>
