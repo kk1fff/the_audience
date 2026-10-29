@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="470" viewBox="0 0 375 470" role="img" aria-labelledby="title desc">
+  <title id="title">Narrow reply composer with ordered image previews</title>
+  <desc id="desc">A nested reply at 375 pixels keeps a full-width input and a two-column thumbnail picker with remove controls, add images link, count, and Send button without horizontal overflow.</desc>
+  <rect width="375" height="470" fill="#fff"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <path d="M38 24V445" stroke="#e5dff7" stroke-width="2"/>
+    <circle cx="70" cy="54" r="16" fill="#8a70ce"/>
+    <text x="65" y="60" font-size="14" fill="#fff">M</text>
+    <text x="99" y="50" font-size="15" font-weight="bold">Mira</text>
+    <text x="99" y="77" font-size="14">That caught my attention.</text>
+    <text x="99" y="102" font-size="12" fill="#7865cc">Reply</text>
+    <text x="99" y="132" font-size="13" fill="#68717d">Reply to Mira</text>
+    <rect x="99" y="143" width="255" height="37" rx="18" fill="#fff" stroke="#dedee6"/>
+    <text x="112" y="167" font-size="13" fill="#899099">Write a reply…</text>
+    <text x="99" y="207" font-size="13" font-weight="bold">Images <tspan fill="#68717d" font-weight="normal">2 of 4</tspan></text>
+
+    <rect x="99" y="219" width="119" height="132" rx="9" fill="#f6f4fa" stroke="#e4e0eb"/>
+    <rect x="104" y="224" width="109" height="92" rx="6" fill="#c9d8ba"/>
+    <path d="M104 305l30-37 19 18 18-30 42 49z" fill="#6d8f65"/>
+    <rect x="150" y="229" width="61" height="23" rx="11" fill="#1d2530"/><text x="158" y="245" font-size="10" fill="#fff">Remove</text>
+    <text x="107" y="338" font-size="11" fill="#68717d">1 · initial.png</text>
+
+    <rect x="228" y="219" width="126" height="132" rx="9" fill="#f6f4fa" stroke="#e4e0eb"/>
+    <rect x="233" y="224" width="116" height="92" rx="6" fill="#d5c3ae"/>
+    <rect x="257" y="245" width="68" height="65" rx="5" fill="#9f704f"/>
+    <rect x="286" y="229" width="61" height="23" rx="11" fill="#1d2530"/><text x="294" y="245" font-size="10" fill="#fff">Remove</text>
+    <text x="236" y="338" font-size="11" fill="#68717d">2 · posts.png</text>
+
+    <text x="99" y="390" font-size="13" font-weight="bold" fill="#7865cc">＋ Add images</text>
+    <rect x="282" y="368" width="72" height="36" rx="18" fill="#7964d0"/>
+    <text x="303" y="392" font-size="13" font-weight="bold" fill="#fff">Send</text>
+  </g>
+</svg>
