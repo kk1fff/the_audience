@@ -31,7 +31,6 @@ const placeZones=[
   ['Springfield, Illinois','America/Chicago'],['Springfield, Massachusetts','America/New_York']
 ] as const;
 for(const [,zone] of placeZones)new Intl.DateTimeFormat('en-US',{timeZone:zone});
-export function knownPlacesIn(text:string):string[] {return placeZones.filter(([place])=>new RegExp(`\\b${place.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'i').test(text)).map(([place])=>place);}
 type ThreadComment={id:number;parentId?:number|null;authorType:string;text:string};
 function threadComment(item:unknown):item is ThreadComment {return typeof item==='object'&&item!==null&&'id' in item&&'authorType' in item&&'text' in item&&typeof item.id==='number'&&typeof item.authorType==='string'&&typeof item.text==='string';}
 function activeOwnerComment(context:Context):ThreadComment|null {

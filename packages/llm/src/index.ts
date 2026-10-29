@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Decision } from '@social/core';
-import {backgroundForPrompt,knownPlacesIn,type BackgroundBundle} from './background.ts';
+import {backgroundForPrompt,type BackgroundBundle} from './background.ts';
 export {buildBackground,createBackgroundBuilder,backgroundUnavailable,extractPublicTopic} from './background.ts';
 export {createSearchProvider,DdgsSearchProvider,ExaSearchProvider} from './search/index.ts';
 export type {SearchProvider,SearchResult} from './search/index.ts';
@@ -19,17 +19,15 @@ export function makeRequest(provider:'ollama'|'openai_compatible',model:string,m
     : {model,messages:[{role:'system',content:messages.system},{role:'user',content:[{type:'text',text:messages.user},...encoded.map(i=>({type:'image_url',image_url:{url:`data:${i.mimeType};base64,${i.base64}`}}))]}]};
 }
 function parseDecision(raw:string):Decision {const match=raw?.match(/\{[\s\S]*\}/);if(!match)throw new Error('Model did not return JSON');const value=JSON.parse(match[0]);return {like:value.like===true,comment:typeof value.comment==='string'?value.comment.slice(0,280):null,follow:typeof value.follow==='boolean'?value.follow:null,memory:typeof value.memory==='string'?value.memory.slice(0,500):null,memoryEvaluation:typeof value.memoryEvaluation==='string'?value.memoryEvaluation.slice(0,500):null};}
-type TimeGuardContext=Pick<BackgroundBundle,'clarificationRequired'|'timeTargetStatus'|'timeTargetReason'|'requestedPlaceLabel'> & Partial<Pick<BackgroundBundle,'requestedTime'|'timeAnswerRequired'|'city'>>;
+type TimeGuardContext=Pick<BackgroundBundle,'clarificationRequired'|'timeTargetStatus'|'timeTargetReason'|'requestedPlaceLabel'> & Partial<Pick<BackgroundBundle,'requestedTime'|'timeAnswerRequired'>>;
 export function enforceTimeClarification(decision:Decision,background?:TimeGuardContext):Decision {
   if(background?.timeAnswerRequired&&background.requestedTime){
     const target=background.requestedTime;const comment=decision.comment?.trim()||'';
     const clock=target.localDateTime.match(/\b\d{1,2}:\d{2}\s*[AP]M\b/)?.[0];
-    const firstSentence=comment.split(/[.!?]/)[0]||'';
-    const clocks=[...comment.matchAll(/\b\d{1,2}:\d{2}\s*(?:[AP]M)?\b/gi)].map(match=>match[0].replace(/\s+/g,' ').toUpperCase());
-    const otherPlace=knownPlacesIn(comment).some(place=>place!==target.place)||Boolean(background.city&&background.city.toLowerCase()!==target.place.toLowerCase()&&new RegExp(`\\b${background.city.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'i').test(comment));
-    const wrongPeriod=[...comment.matchAll(/\b(?:morning|afternoon|evening|night)\b/gi)].some(match=>match[0].toLowerCase()!==target.period);
-    const extraClock=clock?/\d|\b(?:o[’']?clock|noon|midnight)\b/i.test(comment.replace(clock,'')):true;
-    if(clock&&firstSentence.toLowerCase().includes(target.place.toLowerCase())&&firstSentence.includes(clock)&&clocks.length===1&&clocks[0]===clock.toUpperCase()&&!otherPlace&&!wrongPeriod&&!extraClock)return decision;
+    const escape=(value:string)=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    // Only a plain affirmative time statement is safe to retain; hedges and extra clauses use the verified fallback.
+    const positive=clock&&new RegExp(`^(?:The (?:current )?local time in )?${escape(target.place)}\\s+is\\s+${escape(clock)}(?:\\s+${escape(target.zoneAbbreviation)})?[.!]?$`,'i').test(comment);
+    if(positive)return decision;
     const [date]=target.localDateTime.split(' at ');
     return {...decision,comment:`As of ${date}, the local time in ${target.place} is ${clock||target.localDateTime} ${target.zoneAbbreviation}.`,memory:null,memoryEvaluation:'Answered with the verified requested-place time.'};
   }

@@ -174,7 +174,7 @@ test('clarified place before “there” resolves and a verified-time guard reje
   assert.match(messages.system,/answerRequired is true/);assert.match(messages.user,/"place":"Springfield, Illinois"/);
   assert.match(messages.user,/"answerRequired":true/);assert.doesNotMatch(messages.user,/"place":"Seattle"/);
   const fallback='As of Thursday, October 29, 2026, the local time in Springfield, Illinois is 1:00 PM CDT.';
-  for(const wrong of ['Perfect! My jukebox is playing Springfield anthems.','Springfield, Illinois is 2:00 PM.','Springfield, Illinois is 1:00 PM, but Nashville is 2:00 PM.','Springfield, Illinois is 1:00 PM this morning.','Springfield, Illinois is 1:00 PM, or maybe 2 o’clock.']){
+  for(const wrong of ['Perfect! My jukebox is playing Springfield anthems.','Springfield, Illinois is 2:00 PM.','Springfield, Illinois is 1:00 PM, but Nashville is 2:00 PM.','Springfield, Illinois is 1:00 PM this morning.','Springfield, Illinois is 1:00 PM, or maybe 2 o’clock.','Springfield, Illinois is not 1:00 PM.','Springfield, Illinois is 1:00 PM, but that is just a guess.']){
     assert.equal(enforceTimeClarification({like:false,comment:wrong,memory:'Bad time memory'},background).comment,fallback);
   }
   assert.equal(enforceTimeClarification({like:false,comment:'Springfield, Illinois is 1:00 PM CDT.',memory:null},background).comment,'Springfield, Illinois is 1:00 PM CDT.');
