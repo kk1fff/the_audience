@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import {strict as assert} from 'node:assert';
 import {createBackgroundBuilder,extractPublicTopic,resolveRequestedTime} from './background.ts';
-import {buildMessages,decide,type Context} from './index.ts';
+import {buildMessages,decide,enforceTimeClarification,type Context} from './index.ts';
 import {createSearchProvider,ExaSearchProvider,normalizeSearchResults,type SearchProvider} from './search/index.ts';
 const context:Context={agent:{id:'aya',name:'Aya',persona:'Traveler',city:'Kyoto',timeZone:'Asia/Tokyo',latitude:35.0116,longitude:135.7681},memory:'Private memory',post:'I saw an aurora on a walk',comments:[],sourceCommentId:null,images:[]};
 const rss='<rss><channel><item><title>World science story</title><link>https://www.bbc.com/news/story</link><description>Short summary</description><pubDate>Wed, 28 Oct 2026 08:00:00 GMT</pubDate></item></channel></rss>';
@@ -113,6 +113,51 @@ test('city in a past aside cannot override the time question target',()=>{
   assert.equal(resolve('Is it afternoon in Atlantis, unlike Seattle last week?').timeTargetStatus,'unverified');
   assert.equal(resolve('Is it afternoon in Seattle? Is it morning in Atlantis?').timeTargetStatus,'unverified');
   assert.equal(resolve('Is it afternoon in Seattle? Is it morning in Nashville?').timeTargetStatus,'ambiguous');
+});
+
+test('unresolved Springfield prompts for state or country and guards a subject-changing model reply',async()=>{
+  const instant=Date.UTC(2026,9,29,18);
+  const current:Context={...context,agent:{...context.agent,city:'Nashville',timeZone:'America/Chicago'},sourceCommentId:9,comments:[{id:9,parentId:8,authorType:'owner',text:"What time is it right now in Springfield? I haven't said which state or country."}]};
+  const build=createBackgroundBuilder({fetcher:fixtureFetcher([]),now:()=>instant});
+  const background=await build(current);const messages=buildMessages(current,'reply','notification',background);
+  assert.deepEqual({status:background.timeTargetStatus,label:background.requestedPlaceLabel,reason:background.timeTargetReason,required:background.clarificationRequired},{status:'unverified',label:'Springfield',reason:'needs_state_or_country',required:true});
+  assert.match(messages.system,/ask one direct question for the missing state or country/);
+  assert.match(messages.user,/"unresolvedPlace":"Springfield"/);assert.match(messages.user,/"missingDetail":"needs_state_or_country"/);
+  const originalFetch=globalThis.fetch;const previous={provider:process.env.LLM_PROVIDER,base:process.env.LLM_BASE_URL,model:process.env.LLM_MODEL};
+  process.env.LLM_PROVIDER='openai_compatible';process.env.LLM_BASE_URL='http://fake-model.test';process.env.LLM_MODEL='deterministic';
+  globalThis.fetch=(async(_url,init)=>{const request=JSON.parse(String(init?.body));assert.match(request.messages[1].content[0].text,/Springfield/);return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({like:false,comment:'Is Springfield a charming town? Tell me about the scenery!',memory:'Springfield is scenic.'})}}]}),{status:200});}) as typeof fetch;
+  try{
+    const decision=await decide(current,'reply',messages,'notification',background);
+    assert.equal(decision.comment,'Which Springfield do you mean—what state or country? I need that to give its current local time.');
+    assert.equal(decision.memory,null);assert.doesNotMatch(decision.comment||'',/\b\d{1,2}:\d{2}\b/);
+  }finally{globalThis.fetch=originalFetch;for(const [key,value] of Object.entries({LLM_PROVIDER:previous.provider,LLM_BASE_URL:previous.base,LLM_MODEL:previous.model})){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
+  const good=enforceTimeClarification({like:false,comment:'Which Springfield do you mean—what state or country?',memory:null},background);
+  assert.equal(good.comment,'Which Springfield do you mean—what state or country?');
+  for(const claim of ['Which state or country? It is 1:00 PM here.','It is 13:00 in Springfield. Which state or country?','It is 1 o’clock in Springfield. Which state or country?','It is one o\'clock in Springfield. Which state or country?']){
+    const guessed=enforceTimeClarification({like:false,comment:claim,memory:null},background);
+    assert.equal(guessed.comment,'Which Springfield do you mean—what state or country? I need that to give its current local time.');
+  }
+  const followup:Context={...current,sourceCommentId:11,comments:[...current.comments,{id:10,parentId:9,authorType:'agent',text:good.comment},{id:11,parentId:10,authorType:'owner',text:'Illinois'}]};
+  const resolved=resolveRequestedTime(followup,instant);assert.equal(resolved.timeTargetStatus,'resolved');assert.equal(resolved.requestedTime?.place,'Springfield, Illinois');assert.match(resolved.requestedTime!.localDateTime,/1:00 PM/);
+  const massachusetts=resolveRequestedTime({...followup,comments:[...current.comments,{id:10,parentId:9,authorType:'agent',text:good.comment},{id:11,parentId:10,authorType:'owner',text:'Springfield, Massachusetts'}]},instant);
+  assert.equal(massachusetts.requestedTime?.place,'Springfield, Massachusetts');assert.match(massachusetts.requestedTime!.localDateTime,/2:00 PM/);
+});
+
+test('unknown and multiple places get distinct clarifications; ordinary replies and Seattle time stay untouched',()=>{
+  const instant=Date.UTC(2026,9,29,18);const base:Context={...context,sourceCommentId:5,comments:[]};
+  const resolve=(text:string)=>resolveRequestedTime({...base,comments:[{id:5,authorType:'owner',text}]},instant);
+  const unknown=resolve('What time is it in Atlantis?');assert.equal(unknown.requestedPlaceLabel,'Atlantis');assert.equal(unknown.timeTargetReason,'unknown_place');
+  assert.match(enforceTimeClarification({like:false,comment:'Interesting place!',memory:null},unknown).comment||'',/state or country.*Atlantis|state or country is Atlantis/);
+  const multiple=resolve('Is it afternoon in Seattle or Nashville?');assert.equal(multiple.timeTargetReason,'multiple_places');
+  assert.match(enforceTimeClarification({like:false,comment:'Let us talk about music.',memory:null},multiple).comment||'',/Which place do you mean—Seattle or Nashville\?/);
+  const unsupportedPair=resolve('Is it afternoon in Springfield or Portland?');assert.equal(unsupportedPair.timeTargetReason,'multiple_places');
+  assert.match(enforceTimeClarification({like:false,comment:null,memory:null},unsupportedPair).comment||'',/Which place do you mean—Springfield or Portland\?/);
+  const ordinary=resolve('I enjoyed the walk.');assert.equal(ordinary.clarificationRequired,false);
+  assert.equal(enforceTimeClarification({like:false,comment:'Glad you enjoyed it.',memory:null},ordinary).comment,'Glad you enjoyed it.');
+  const statement=resolve('I spent the afternoon in Springfield.');assert.equal(statement.timeTargetStatus,'none');assert.equal(statement.clarificationRequired,false);
+  assert.equal(enforceTimeClarification({like:false,comment:'That sounds like a lovely visit.',memory:null},statement).comment,'That sounds like a lovely visit.');
+  const seattle=resolve('Is it afternoon in Seattle?');assert.equal(seattle.timeTargetStatus,'resolved');
+  assert.equal(enforceTimeClarification({like:false,comment:'Seattle is still morning.',memory:null},seattle).comment,'Seattle is still morning.');
 });
 
 test('search provider switches to Exa only with a key and bounds typed results',async()=>{
