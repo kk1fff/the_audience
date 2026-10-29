@@ -47,12 +47,37 @@ function Entry({item}:{item:Item}) {
 }
 
 export default function Activity() {
-  const [items, setItems] = useState<Item[]>([]), [offset, setOffset] = useState(0);
-  useEffect(() => { let active = true; async function load() { const response = await fetch(`/api/activity?offset=${offset}`, {cache:'no-store'}); if (active && response.ok) setItems(await response.json()); } void load(); const timer = setInterval(() => void load(), 3000); return () => { active = false; clearInterval(timer); }; }, [offset]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [cursors,setCursors] = useState<(number|null)[]>([null]);
+  const [nextCursor,setNextCursor] = useState<number|null>(null);
+  const [loading,setLoading] = useState(true);
+  const cursor = cursors[cursors.length-1];
+  useEffect(() => {
+    let active = true, latestRequest = 0;
+    setLoading(true);
+    async function load() {
+      const requestId = ++latestRequest;
+      try {
+        const response = await fetch(`/api/activity${cursor === null ? '' : `?beforePostId=${cursor}`}`, {cache:'no-store'});
+        if (!response.ok) return;
+        const page = await response.json() as {items:Item[];nextCursor:number|null};
+        if (active && requestId === latestRequest) { setItems(page.items); setNextCursor(page.nextCursor); setLoading(false); }
+      } catch { /* Keep the current page visible and retry on the next poll. */ }
+    }
+    void load();
+    const timer = setInterval(() => void load(), 3000);
+    return () => { active = false; clearInterval(timer); };
+  }, [cursor]);
+  function navigate(direction:'previous'|'next') {
+    setLoading(true);
+    if (direction === 'previous') setCursors(current=>current.slice(0,-1));
+    else if (nextCursor !== null) setCursors(current=>[...current,nextCursor]);
+    window.scrollTo({top:0,behavior:'auto'});
+  }
   const groups = [...new Set(items.map(item => item.postId))];
-  return <div className="activityPage"><div className="activityHeader"><Link href="/">← The Audience</Link><h1>Agent activity</h1><p>How friends found posts and reacted.</p></div>{items.length === 0 && <p>No activity yet.</p>}{groups.map(postId => {
+  return <div className="activityPage"><div className="activityHeader"><Link href="/">← The Audience</Link><h1>Agent activity</h1><p>How friends found posts and reacted.</p></div>{loading ? <p>Loading activity…</p> : items.length === 0 && <p>No activity yet.</p>}{!loading && groups.map(postId => {
     const postItems = items.filter(item => item.postId === postId);
     const {reactions,other,counts} = organizePostActivity(postItems);
     return <section key={postId}><PostPreview postId={postId} postText={postItems[0].postText} postImageId={postItems[0].postImageId}/>{reactions.map(item => <Entry key={item.id} item={item}/>)}{other.length > 0 && <details className="otherActivity"><summary><strong>Other activity</strong><span className="otherCounts">{otherCounts(counts)}</span><span className="showEntries">Show {other.length} {other.length === 1 ? 'entry' : 'entries'} ▾</span><span className="hideEntries">Hide {other.length} {other.length === 1 ? 'entry' : 'entries'} ▴</span></summary><div className="otherEntries">{other.map(item => <Entry key={item.id} item={item}/>)}</div></details>}</section>;
-  })}<div className="pages"><button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</button><button disabled={items.length < 50} onClick={() => setOffset(offset + 50)}>Next</button></div></div>;
+  })}<nav className="activityPagination" aria-label="Activity pages"><p>{cursors.length === 1 ? 'Showing newest posts' : 'Showing older posts'}</p><div className="pages"><button disabled={loading || cursors.length === 1} onClick={() => navigate('previous')}>← Previous</button><button disabled={loading || nextCursor === null} onClick={() => navigate('next')}>Next →</button></div><p className="paginationHint">{cursors.length === 1 ? 'Next shows older posts.' : 'Previous returns to newer posts. Next shows older posts.'}</p></nav></div>;
 }
