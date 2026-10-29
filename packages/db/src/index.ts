@@ -30,6 +30,7 @@ function getDb(): DatabaseSync {
   for(const [name,type] of [['mock_miss','INTEGER NOT NULL DEFAULT 0'],['memory_before','TEXT'],['memory_after','TEXT']] as const) if(!columns.has(name)) db.exec(`ALTER TABLE jobs ADD COLUMN ${name} ${type}`);
   if(!columns.has('source')) db.exec("ALTER TABLE jobs ADD COLUMN source TEXT NOT NULL DEFAULT 'notification'");
   if(!columns.has('discovered_at')) db.exec('ALTER TABLE jobs ADD COLUMN discovered_at INTEGER');
+  if(!columns.has('mentioned_handle')) db.exec('ALTER TABLE jobs ADD COLUMN mentioned_handle TEXT');
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS one_feed_job_per_post_agent ON jobs(post_id,agent_id) WHERE kind='post' AND source='feed';
   CREATE TABLE IF NOT EXISTS agent_feed_checks (agent_id TEXT PRIMARY KEY REFERENCES agents(id), interval_ms INTEGER NOT NULL, next_check_at INTEGER NOT NULL);`);
   connection = db;
@@ -84,12 +85,21 @@ export function getPost(id:number) {
   const post = getDb().prepare('SELECT id,text,created_at AS createdAt FROM posts WHERE id=?').get(id);
   return post ? hydratePost(post) : null;
 }
+function mentionedAgents(text:string, agents:AgentProfile[]) {
+  const byHandle=new Map(agents.map(agent=>[agent.handle.toLowerCase(),agent]));
+  const matches=new Map<string,{agent:AgentProfile;handle:string}>();
+  for(const match of text.matchAll(/(^|[^a-z0-9_-])@([a-z0-9_-]+)/gi)) {
+    const agent=byHandle.get(match[2].toLowerCase());
+    if(agent) matches.set(agent.id,{agent,handle:match[2]});
+  }
+  return matches;
+}
 export function createPost(text: string, imageIds: string[] = []) { return transaction(() => {
   const id = Number(getDb().prepare('INSERT INTO posts(text) VALUES(?)').run(text).lastInsertRowid);
   attachImages(imageIds, id, null);
   const agents = getAgents();
-  const selected=pickAgents(agents);const selectedIds=new Set(selected.map(a=>a.id));
-  for(const agent of agents){const memory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(agent.id) as any)?.content||'';const notified=selectedIds.has(agent.id);getDb().prepare('INSERT INTO jobs(kind,post_id,agent_id,due_at,status,outcome,mock_miss,memory_before,memory_after) VALUES(?,?,?,?,?,?,?,?,?)').run('post',id,agent.id,notified?Date.now()+delayMs('post'):Date.now(),notified?'pending':'not_selected',notified?null:'not_selected',notified&&agent.id===selected[0]?.id?1:0,memory,memory);}
+  const selected=pickAgents(agents);const selectedIds=new Set(selected.map(a=>a.id));const mentions=mentionedAgents(text,agents);
+  for(const agent of agents){const memory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(agent.id) as any)?.content||'';const mention=mentions.get(agent.id);const notified=selectedIds.has(agent.id);getDb().prepare('INSERT INTO jobs(kind,post_id,agent_id,due_at,status,outcome,mock_miss,memory_before,memory_after,source,mentioned_handle) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('post',id,agent.id,mention?Date.now():notified?Date.now()+delayMs('post'):Date.now(),mention||notified?'pending':'not_selected',mention||notified?null:'not_selected',mention?0:notified&&agent.id===selected[0]?.id?1:0,memory,memory,mention?'mention':'notification',mention?.handle??null);}
   return { id, text };
 }); }
 export function createOwnerReply(parentId: number, text: string, imageIds: string[] = []) { return transaction(() => {
@@ -97,13 +107,16 @@ export function createOwnerReply(parentId: number, text: string, imageIds: strin
   if (!parent || parent.authorType !== 'agent') return null;
   const id = Number(getDb().prepare(`INSERT INTO comments(post_id,parent_id,author_type,text) VALUES(?,?,'owner',?)`).run(parent.postId,parentId,text).lastInsertRowid);
   attachImages(imageIds, parent.postId, id);
-  const memory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(parent.agentId) as any)?.content||'';
-  getDb().prepare('INSERT INTO jobs(kind,post_id,source_comment_id,agent_id,due_at,mock_miss,memory_before,memory_after) VALUES(?,?,?,?,?,?,?,?)').run('reply',parent.postId,id,parent.agentId,Date.now()+delayMs('reply'),id%2===0?1:0,memory,memory);
+  const mentions=mentionedAgents(text,getAgents());
+  const targets=new Set([parent.agentId,...mentions.keys()]);
+  for(const agentId of targets){const memory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(agentId) as any)?.content||'';const mention=mentions.get(agentId);
+    getDb().prepare('INSERT INTO jobs(kind,post_id,source_comment_id,agent_id,due_at,mock_miss,memory_before,memory_after,source,mentioned_handle) VALUES(?,?,?,?,?,?,?,?,?,?)').run('reply',parent.postId,id,agentId,mention?Date.now():Date.now()+delayMs('reply'),mention?0:id%2===0?1:0,memory,memory,mention?'mention':'notification',mention?.handle??null);
+  }
   return { id, postId: parent.postId, parentId, text };
 }); }
-export type Job = { id: number; kind: 'post'|'reply'; source: 'notification'|'feed'; postId: number; sourceCommentId: number|null; agentId: string; attempts: number; mockMiss: boolean };
+export type Job = { id: number; kind: 'post'|'reply'; source: 'notification'|'feed'|'mention'; postId: number; sourceCommentId: number|null; agentId: string; attempts: number; mockMiss: boolean; mentionedHandle:string|null };
 export function claimJob(): Job | null { return transaction(() => {
-  const job = getDb().prepare(`SELECT id,kind,source,post_id AS postId,source_comment_id AS sourceCommentId,agent_id AS agentId,attempts,mock_miss AS mockMiss FROM jobs WHERE status='pending' AND due_at<=? ORDER BY due_at,id LIMIT 1`).get(Date.now()) as Job | undefined;
+  const job = getDb().prepare(`SELECT id,kind,source,post_id AS postId,source_comment_id AS sourceCommentId,agent_id AS agentId,attempts,mock_miss AS mockMiss,mentioned_handle AS mentionedHandle FROM jobs WHERE status='pending' AND due_at<=? ORDER BY due_at,id LIMIT 1`).get(Date.now()) as Job | undefined;
   if (!job) return null;
   getDb().prepare(`UPDATE jobs SET status='running',attempts=attempts+1 WHERE id=?`).run(job.id);
   getDb().prepare(`INSERT INTO job_attempts(job_id,started_at,status) VALUES(?,?,'running')`).run(job.id,Date.now());
@@ -114,7 +127,8 @@ export function getContext(job: Job) {
   const memory = getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any;
   const post = getDb().prepare('SELECT text FROM posts WHERE id=?').get(job.postId) as any;
   const comments = getDb().prepare('SELECT author_type AS authorType,agent_id AS agentId,text,id,parent_id AS parentId FROM comments WHERE post_id=? ORDER BY id').all(job.postId);
-  return { agent, memory: memory?.content || '', post: post?.text || '', comments, sourceCommentId: job.sourceCommentId, images: [...getImagesForPost(job.postId), ...(job.sourceCommentId ? getImagesForComment(job.sourceCommentId) : [])] };
+  const reply=job.sourceCommentId ? getDb().prepare(`SELECT c.text,p.agent_id AS parentAgentId,a.name AS parentAgentName FROM comments c LEFT JOIN comments p ON p.id=c.parent_id LEFT JOIN agents a ON a.id=p.agent_id WHERE c.id=?`).get(job.sourceCommentId) as {text:string;parentAgentId:string|null;parentAgentName:string|null}|undefined : undefined;
+  return { agent, memory: memory?.content || '', post: post?.text || '', comments, sourceCommentId: job.sourceCommentId, mentionedHandle:job.mentionedHandle, mentionText:job.kind==='post'?post?.text||'':reply?.text||'',replyToAgentName:reply?.parentAgentName||null,replyToOwnComment:reply?.parentAgentId===job.agentId, images: [...getImagesForPost(job.postId), ...(job.sourceCommentId ? getImagesForComment(job.sourceCommentId) : [])] };
 }
 export function completeJob(job: Job, decision: Decision | null, forcedOutcome?: 'missed') { transaction(() => {
   const current = getDb().prepare('SELECT status FROM jobs WHERE id=?').get(job.id) as any;
@@ -125,12 +139,14 @@ export function completeJob(job: Job, decision: Decision | null, forcedOutcome?:
     if (decision.comment?.trim()) getDb().prepare(`INSERT INTO comments(post_id,parent_id,author_type,agent_id,text) VALUES(?,?,'agent',?,?)`).run(job.postId,job.kind === 'reply' ? job.sourceCommentId : null,job.agentId,decision.comment.trim().slice(0,280));
     if (decision.memory?.trim()) { const old = (getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any)?.content || ''; getDb().prepare('UPDATE memories SET content=? WHERE agent_id=?').run((old+'\n'+decision.memory.trim()).trim().slice(-2000),job.agentId); }
   }
-  const outcome = forcedOutcome || (!decision || (!decision.like && !decision.comment?.trim()) ? 'ignored' : decision.like && decision.comment?.trim() ? 'liked_and_commented' : decision.like ? 'liked' : 'commented');
+  const liked = job.kind === 'post' && decision?.like === true;
+  const commented = Boolean(decision?.comment?.trim());
+  const outcome = forcedOutcome || (liked && commented ? 'liked_and_commented' : liked ? 'liked' : commented ? 'commented' : 'ignored');
   const afterMemory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any)?.content||'';
   getDb().prepare(`UPDATE jobs SET status='done',outcome=?,completed_at=?,memory_before=?,memory_after=?,error=NULL WHERE id=?`).run(outcome,Date.now(),oldMemory,afterMemory,job.id);
   getDb().prepare(`UPDATE job_attempts SET status=?,finished_at=?,model_response=?,memory_before=?,memory_after=?,memory_evaluation=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(outcome,Date.now(),decision?JSON.stringify(decision):null,oldMemory,afterMemory,decision?.memoryEvaluation||null,job.id);
 }); }
-export function failJob(job: Job, error: unknown) { const attempts = job.attempts + 1; const failed = attempts >= 3; transaction(() => { getDb().prepare('UPDATE jobs SET status=?,outcome=?,completed_at=?,attempts=?,due_at=?,error=? WHERE id=?').run(failed ? 'failed' : 'pending',failed ? 'failed' : null,failed ? Date.now() : null,attempts,Date.now()+Math.min(60000,1000*2**attempts),String(error).slice(0,500),job.id); getDb().prepare(`UPDATE job_attempts SET status='failed',finished_at=?,error=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(Date.now(),String(error).slice(0,500),job.id); }); }
+export function failJob(job: Job, error: unknown) { const attempts = job.attempts + 1; const failed = job.source !== 'mention' && attempts >= 3; transaction(() => { getDb().prepare('UPDATE jobs SET status=?,outcome=?,completed_at=?,attempts=?,due_at=?,error=? WHERE id=?').run(failed ? 'failed' : 'pending',failed ? 'failed' : null,failed ? Date.now() : null,attempts,Date.now()+Math.min(job.source==='mention'?300000:60000,1000*2**Math.min(attempts,20)),String(error).slice(0,500),job.id); getDb().prepare(`UPDATE job_attempts SET status='failed',finished_at=?,error=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(Date.now(),String(error).slice(0,500),job.id); }); }
 
 export type StoredImage = { id: string; mimeType: string; byteSize: number; path: string; description: string|null };
 function imageRow(row:any): StoredImage { return { id:row.id, mimeType:row.mime_type, byteSize:row.byte_size, path:join(uploadsDir,row.file_name), description:row.description??null }; }
@@ -142,7 +158,7 @@ function attachImages(ids:string[], postId:number, commentId:number|null) { for 
 export function storeImage(bytes:Buffer,mimeType:string,description:string|null=null): StoredImage { mkdirSync(uploadsDir,{recursive:true}); const id=randomUUID();const ext=mimeType==='image/png'?'png':mimeType==='image/webp'?'webp':'jpg';const fileName=`${id}.${ext}`;const filePath=join(uploadsDir,fileName);writeFileSync(filePath,bytes);try { getDb().prepare('INSERT INTO images(id,mime_type,byte_size,file_name,description) VALUES(?,?,?,?,?)').run(id,mimeType,bytes.length,fileName,description); } catch(error) { unlinkSync(filePath);throw error; }return {id,mimeType,byteSize:bytes.length,path:filePath,description}; }
 export function deleteUnattachedImages(ids:string[]) { for(const id of ids){const row=getDb().prepare('SELECT * FROM images WHERE id=? AND post_id IS NULL AND comment_id IS NULL').get(id) as any;if(row){getDb().prepare('DELETE FROM images WHERE id=?').run(id);try{unlinkSync(join(uploadsDir,row.file_name));}catch{}}} }
 export function recordPayload(job:Job,payload:{system:string;user:string;imageIds:string[];provider:string;model:string;memoryBefore:string}) { getDb().prepare(`UPDATE job_attempts SET system_text=?,user_text=?,image_ids=?,provider=?,model=?,memory_before=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(payload.system,payload.user,JSON.stringify(payload.imageIds),payload.provider,payload.model,payload.memoryBefore,job.id); }
-export function getActivity(limit=50,offset=0) { return getDb().prepare(`SELECT j.id,j.kind,j.source,j.discovered_at AS discoveredAt,j.post_id AS postId,p.text AS postText,pi.id AS postImageId,pi.description AS postImageDescription,j.source_comment_id AS sourceCommentId,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN posts p ON p.id=j.post_id LEFT JOIN images pi ON pi.id=(SELECT i.id FROM images i WHERE i.post_id=j.post_id AND i.comment_id IS NULL ORDER BY i.rowid LIMIT 1) LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) ORDER BY j.id DESC LIMIT ? OFFSET ?`).all(Math.min(100,Math.max(1,limit)),Math.max(0,offset)); }
+export function getActivity(limit=50,offset=0) { return getDb().prepare(`SELECT j.id,j.kind,j.source,j.discovered_at AS discoveredAt,j.post_id AS postId,p.text AS postText,pi.id AS postImageId,pi.description AS postImageDescription,j.source_comment_id AS sourceCommentId,j.mentioned_handle AS mentionedHandle,(SELECT a2.name FROM comments c2 JOIN comments parent ON parent.id=c2.parent_id JOIN agents a2 ON a2.id=parent.agent_id WHERE c2.id=j.source_comment_id) AS replyToAgentName,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN posts p ON p.id=j.post_id LEFT JOIN images pi ON pi.id=(SELECT i.id FROM images i WHERE i.post_id=j.post_id AND i.comment_id IS NULL ORDER BY i.rowid LIMIT 1) LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) ORDER BY j.id DESC LIMIT ? OFFSET ?`).all(Math.min(100,Math.max(1,limit)),Math.max(0,offset)); }
 export function getActivityPage(beforePostId: number | null = null, pageSize = 5) {
   if (beforePostId !== null && (!Number.isSafeInteger(beforePostId) || beforePostId <= 0)) throw new Error('Invalid activity cursor');
   const size = Math.min(20, Math.max(1, Math.trunc(pageSize)));
@@ -152,7 +168,7 @@ export function getActivityPage(beforePostId: number | null = null, pageSize = 5
   const selected = groups.slice(0,size).map(group=>group.postId);
   if (selected.length === 0) return {items:[],nextCursor:null};
   const placeholders = selected.map(()=>'?').join(',');
-  const items = getDb().prepare(`SELECT j.id,j.kind,j.source,j.discovered_at AS discoveredAt,j.post_id AS postId,p.text AS postText,pi.id AS postImageId,pi.description AS postImageDescription,j.source_comment_id AS sourceCommentId,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN posts p ON p.id=j.post_id LEFT JOIN images pi ON pi.id=(SELECT i.id FROM images i WHERE i.post_id=j.post_id AND i.comment_id IS NULL ORDER BY i.rowid LIMIT 1) LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) WHERE j.post_id IN (${placeholders}) ORDER BY j.post_id DESC,j.id DESC`).all(...selected);
+  const items = getDb().prepare(`SELECT j.id,j.kind,j.source,j.discovered_at AS discoveredAt,j.post_id AS postId,p.text AS postText,pi.id AS postImageId,pi.description AS postImageDescription,j.source_comment_id AS sourceCommentId,j.mentioned_handle AS mentionedHandle,(SELECT a2.name FROM comments c2 JOIN comments parent ON parent.id=c2.parent_id JOIN agents a2 ON a2.id=parent.agent_id WHERE c2.id=j.source_comment_id) AS replyToAgentName,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN posts p ON p.id=j.post_id LEFT JOIN images pi ON pi.id=(SELECT i.id FROM images i WHERE i.post_id=j.post_id AND i.comment_id IS NULL ORDER BY i.rowid LIMIT 1) LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) WHERE j.post_id IN (${placeholders}) ORDER BY j.post_id DESC,j.id DESC`).all(...selected);
   return {items,nextCursor:groups.length>size?selected[selected.length-1]:null};
 }
 export function getActivityAttempts(jobId:number) { return getDb().prepare('SELECT id,started_at AS startedAt,finished_at AS finishedAt,status,error,system_text AS systemText,user_text AS userText,prompt_text AS legacyPromptText,provider,model,model_response AS modelResponse,memory_before AS memoryBefore,memory_after AS memoryAfter,memory_evaluation AS memoryEvaluation,image_ids AS imageIds FROM job_attempts WHERE job_id=? ORDER BY id').all(jobId); }
