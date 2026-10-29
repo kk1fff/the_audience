@@ -37,7 +37,13 @@ function activeOwnerMessage(context:Context):string {
 export function resolveRequestedTime(context:Context,instant:number):{requestedTime:RequestedTime|null;timeTargetStatus:BackgroundBundle['timeTargetStatus']} {
   const message=activeOwnerMessage(context);
   if(!timeCue.test(message))return{requestedTime:null,timeTargetStatus:'none'};
-  const matches=placeZones.filter(([place])=>new RegExp(`\\b${place.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'i').test(message));
+  const clauses=(message.match(/[^.!?]+[.!?]?/g)||[]).map(part=>part.trim()).filter(part=>timeCue.test(part));
+  const questions=clauses.filter(part=>part.includes('?'));
+  const relevant=(questions.length?questions:clauses).join(' ');
+  const explicit=[...relevant.matchAll(/\b(?:time|morning|afternoon|evening|today|tomorrow)\b[^.!?]{0,60}?\b(?:in|at)\s+([A-Za-z][A-Za-z,.'-]*(?:\s+[A-Za-z][A-Za-z,.'-]*){0,2})/gi)].map(match=>match[1]);
+  const escape=(value:string)=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const matches=placeZones.filter(([place])=>new RegExp(`\\b${escape(place)}\\b`,'i').test(relevant));
+  if(explicit.some(phrase=>!placeZones.some(([place])=>new RegExp(`^${escape(place)}\\b`,'i').test(phrase))))return{requestedTime:null,timeTargetStatus:'unverified'};
   if(matches.length>1)return{requestedTime:null,timeTargetStatus:'ambiguous'};
   if(matches.length===1){
     const [place,timeZone]=matches[0];
@@ -45,7 +51,7 @@ export function resolveRequestedTime(context:Context,instant:number):{requestedT
     const period=hour<5||hour>=22?'night':hour<12?'morning':hour<18?'afternoon':'evening';
     return{requestedTime:{place,timeZone,localDateTime:localDateTime(instant,timeZone),period},timeTargetStatus:'resolved'};
   }
-  const possiblePlace=/\b(?:time|morning|afternoon|evening|today|tomorrow)\b[^.!?]{0,60}\bin\s+[A-Za-z]/i.test(message)||/\bin\s+[A-Z][a-z]+\b/.test(message);
+  const possiblePlace=explicit.length>0||/\bin\s+[A-Z][a-z]+\b/.test(relevant);
   return{requestedTime:null,timeTargetStatus:possiblePlace?'unverified':'none'};
 }
 function safeUrl(value:string):string|null {try{const url=new URL(value);return url.protocol==='https:'||url.protocol==='http:'?url.href:null;}catch{return null;}}

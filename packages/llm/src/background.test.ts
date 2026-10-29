@@ -103,6 +103,18 @@ test('current owner message alone controls time target; unknown and ambiguous pl
   assert.match(winter!.localDateTime,/December 31, 2026 at 4:30 PM/);assert.equal(winter?.period,'afternoon');
 });
 
+test('city in a past aside cannot override the time question target',()=>{
+  const instant=Date.UTC(2026,9,29,18);
+  const base:Context={...context,sourceCommentId:9,comments:[]};
+  const resolve=(text:string)=>resolveRequestedTime({...base,comments:[{id:9,authorType:'owner',text}]},instant);
+  const unknown=resolve('Is it afternoon in Atlantis? I was in Seattle last week.');
+  assert.deepEqual({status:unknown.timeTargetStatus,target:unknown.requestedTime},{status:'unverified',target:null});
+  assert.equal(resolve('Is it afternoon in Seattle? I was in Nashville last week.').requestedTime?.place,'Seattle');
+  assert.equal(resolve('Is it afternoon in Atlantis, unlike Seattle last week?').timeTargetStatus,'unverified');
+  assert.equal(resolve('Is it afternoon in Seattle? Is it morning in Atlantis?').timeTargetStatus,'unverified');
+  assert.equal(resolve('Is it afternoon in Seattle? Is it morning in Nashville?').timeTargetStatus,'ambiguous');
+});
+
 test('search provider switches to Exa only with a key and bounds typed results',async()=>{
   assert.equal(createSearchProvider({}).name,'DDGS');assert.equal(createSearchProvider({EXA_API_KEY:'secret'}).name,'Exa');
   let body:any;const fetcher=(async(_url:RequestInfo|URL,init?:RequestInit)=>{body=JSON.parse(String(init?.body));return new Response(JSON.stringify({results:[{title:'One',url:'https://example.com/one',highlights:['A detail'],publishedDate:'2026-10-28T00:00:00Z'},{title:'Bad',url:'javascript:bad'},{title:'Three',url:'https://example.com/three'}]}),{status:200});}) as typeof fetch;
