@@ -133,8 +133,10 @@ test('unresolved Springfield prompts for state or country and guards a subject-c
   }finally{globalThis.fetch=originalFetch;for(const [key,value] of Object.entries({LLM_PROVIDER:previous.provider,LLM_BASE_URL:previous.base,LLM_MODEL:previous.model})){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
   const good=enforceTimeClarification({like:false,comment:'Which Springfield do you mean—what state or country?',memory:null},background);
   assert.equal(good.comment,'Which Springfield do you mean—what state or country?');
-  const guessed=enforceTimeClarification({like:false,comment:'Which state or country? It is 1:00 PM here.',memory:null},background);
-  assert.equal(guessed.comment,'Which Springfield do you mean—what state or country? I need that to give its current local time.');
+  for(const claim of ['Which state or country? It is 1:00 PM here.','It is 13:00 in Springfield. Which state or country?','It is 1 o’clock in Springfield. Which state or country?','It is one o\'clock in Springfield. Which state or country?']){
+    const guessed=enforceTimeClarification({like:false,comment:claim,memory:null},background);
+    assert.equal(guessed.comment,'Which Springfield do you mean—what state or country? I need that to give its current local time.');
+  }
   const followup:Context={...current,sourceCommentId:11,comments:[...current.comments,{id:10,parentId:9,authorType:'agent',text:good.comment},{id:11,parentId:10,authorType:'owner',text:'Illinois'}]};
   const resolved=resolveRequestedTime(followup,instant);assert.equal(resolved.timeTargetStatus,'resolved');assert.equal(resolved.requestedTime?.place,'Springfield, Illinois');assert.match(resolved.requestedTime!.localDateTime,/1:00 PM/);
   const massachusetts=resolveRequestedTime({...followup,comments:[...current.comments,{id:10,parentId:9,authorType:'agent',text:good.comment},{id:11,parentId:10,authorType:'owner',text:'Springfield, Massachusetts'}]},instant);

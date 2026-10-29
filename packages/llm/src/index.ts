@@ -22,7 +22,8 @@ function parseDecision(raw:string):Decision {const match=raw?.match(/\{[\s\S]*\}
 export function enforceTimeClarification(decision:Decision,background?:Pick<BackgroundBundle,'clarificationRequired'|'timeTargetStatus'|'timeTargetReason'|'requestedPlaceLabel'>):Decision {
   if(!background?.clarificationRequired||(background.timeTargetStatus!=='unverified'&&background.timeTargetStatus!=='ambiguous'))return decision;
   const comment=decision.comment?.trim()||'';
-  const guessedTime=/\b\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)\b|\b(?:it's|it is)\s+(?:morning|afternoon|evening|night)\b/i.test(comment);
+  // Accept only a plain location question; numbers and time words could be a fabricated clock claim.
+  const guessedTime=/\d|\b(?:o[’']?clock|noon|midnight|morning|afternoon|evening|night|a\.?m\.?|p\.?m\.?)\b/i.test(comment);
   const asksDetail=background.timeTargetReason==='multiple_places'?/\bwhich\b[^?]{0,80}\b(?:place|city|one|do you mean)\b[^?]*\?/i.test(comment):/\b(?:state|country|location)\b[^?]*\?/i.test(comment);
   if(asksDetail&&!guessedTime)return decision;
   const place=background.requestedPlaceLabel;
