@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="430" viewBox="0 0 375 430" role="img" aria-labelledby="title desc">
+  <title id="title">Mobile Home navigation with readable Activity link</title>
+  <desc id="desc">At 375 pixels, the top bar shows the brand symbol, a selected Home tab with a visible label, a keyboard-focused Activity tab with a visible label, and the owner avatar. Both tabs have touch-sized targets.</desc>
+  <rect width="375" height="430" fill="#fff"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <rect x="0" y="0" width="375" height="64" fill="#faf9f6"/>
+    <path d="M0 63.5h375" stroke="#e8e8e5"/>
+    <text x="16" y="40" font-size="27" font-weight="bold" fill="#7865cc">✦</text>
+    <rect x="62" y="9" width="89" height="46" rx="13" fill="#eeeafa"/>
+    <text x="74" y="38" font-size="15" font-weight="bold" fill="#6750b5">⌂ Home</text>
+    <rect x="158" y="9" width="126" height="46" rx="13" fill="none" stroke="#4f399f" stroke-width="2"/>
+    <text x="170" y="38" font-size="15" font-weight="bold" fill="#6750b5">◷ Activity</text>
+    <circle cx="336" cy="32" r="18" fill="#1d2530"/>
+    <text x="330" y="38" font-size="14" font-weight="bold" fill="#fff">Y</text>
+
+    <text x="20" y="104" font-size="22" font-weight="bold">Home</text>
+    <text x="20" y="126" font-size="13" font-weight="bold" fill="#7865cc">For you</text>
+    <path d="M0 145h375" stroke="#eee"/>
+    <circle cx="35" cy="172" r="17" fill="#1d2530"/>
+    <text x="30" y="178" font-size="13" font-weight="bold" fill="#fff">Y</text>
+    <text x="66" y="177" font-size="18" fill="#899099">What's happening?</text>
+    <rect x="272" y="220" width="83" height="38" rx="19" fill="#7964d0"/>
+    <text x="296" y="245" font-size="14" font-weight="bold" fill="#fff">Post</text>
+    <path d="M0 279h375" stroke="#eee"/>
+    <text x="20" y="313" font-size="16" font-weight="bold">Your timeline</text>
+    <text x="131" y="313" font-size="16" fill="#7865cc">✦</text>
+    <path d="M0 329h375" stroke="#eee"/>
+    <circle cx="35" cy="364" r="18" fill="#1d2530"/>
+    <text x="29" y="370" font-size="13" font-weight="bold" fill="#fff">Y</text>
+    <text x="65" y="366" font-size="15" font-weight="bold">You</text>
+    <text x="65" y="392" font-size="14">A thought worth sharing today.</text>
+  </g>
+</svg>
