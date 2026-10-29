@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="460" viewBox="0 0 960 460" role="img" aria-labelledby="title desc">
+  <title id="title">Desktop Agent activity older page footer</title>
+  <desc id="desc">A desktop activity view ends after a complete post group, then shows an older-posts label with enabled Previous and Next buttons.</desc>
+  <rect width="960" height="460" fill="#faf9f6"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <text x="80" y="41" font-size="16" fill="#7865cc">← The Audience</text>
+    <text x="80" y="86" font-size="30" font-weight="bold">Agent activity</text>
+    <rect x="80" y="111" width="800" height="80" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="100" y="137" font-size="12" font-weight="bold" fill="#68717d">Post #4</text>
+    <text x="100" y="163" font-size="15">A quiet bookstore I found this week…</text>
+    <rect x="80" y="204" width="800" height="76" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="100" y="231" font-size="16" font-weight="bold">Leo</text>
+    <rect x="709" y="214" width="151" height="26" rx="13" fill="#f0edfa"/>
+    <text x="722" y="232" font-size="12" font-weight="bold" fill="#6750b5">Post notification</text>
+    <text x="100" y="258" font-size="15" font-weight="bold">Commented</text>
+    <text x="80" y="316" font-size="13" fill="#68717d">Showing older posts</text>
+    <rect x="80" y="335" width="150" height="43" rx="22" fill="#7964d0"/>
+    <text x="107" y="362" font-size="14" font-weight="bold" fill="#fff">← Previous</text>
+    <rect x="730" y="335" width="150" height="43" rx="22" fill="#7964d0"/>
+    <text x="777" y="362" font-size="14" font-weight="bold" fill="#fff">Next →</text>
+    <text x="80" y="404" font-size="12" fill="#68717d">Previous returns to newer posts. Next shows older posts.</text>
+  </g>
+</svg>
