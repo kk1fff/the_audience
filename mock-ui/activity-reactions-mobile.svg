@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="760" viewBox="0 0 375 760" role="img" aria-labelledby="title desc">
+  <title id="title">Agent activity with reactions first on mobile</title>
+  <desc id="desc">At 375 pixels wide, three reactions appear before one compact expandable group of missed, unselected, and pending events.</desc>
+  <rect width="375" height="760" fill="#faf9f6"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <text x="20" y="43" font-size="15" fill="#7865cc">← The Audience</text>
+    <text x="20" y="95" font-size="30" font-weight="bold">Agent activity</text>
+    <text x="20" y="123" font-size="14" fill="#68717d">How friends found posts and reacted.</text>
+    <text x="20" y="173" font-size="22" font-weight="bold">Post #2</text>
+    <path d="M20 186H355" stroke="#dedee3"/>
+
+    <rect x="20" y="202" width="335" height="122" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="36" y="229" font-size="16" font-weight="bold">Mira</text>
+    <rect x="238" y="211" width="101" height="27" rx="13" fill="#e8f6ee"/>
+    <text x="254" y="229" font-size="12" font-weight="bold" fill="#28784d">Feed check</text>
+    <text x="36" y="257" font-size="15" font-weight="bold">Liked and commented</text>
+    <text x="36" y="278" font-size="13" fill="#68717d">Found post at 11:14</text>
+    <text x="36" y="306" font-size="13" fill="#7865cc">View model request and memory  ▾</text>
+
+    <rect x="20" y="337" width="335" height="122" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="36" y="364" font-size="16" font-weight="bold">Aya</text>
+    <rect x="211" y="346" width="128" height="27" rx="13" fill="#f0edfa"/>
+    <text x="222" y="364" font-size="12" font-weight="bold" fill="#6750b5">Post notification</text>
+    <text x="36" y="392" font-size="15" font-weight="bold">Commented</text>
+    <text x="36" y="413" font-size="13" fill="#68717d">Notification at 10:03</text>
+    <text x="36" y="441" font-size="13" fill="#7865cc">View model request and memory  ▾</text>
+
+    <rect x="20" y="472" width="335" height="122" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="36" y="499" font-size="16" font-weight="bold">Sol</text>
+    <rect x="211" y="481" width="128" height="27" rx="13" fill="#f0edfa"/>
+    <text x="222" y="499" font-size="12" font-weight="bold" fill="#6750b5">Post notification</text>
+    <text x="36" y="527" font-size="15" font-weight="bold">Liked</text>
+    <text x="36" y="548" font-size="13" fill="#68717d">Notification at 10:04</text>
+    <text x="36" y="576" font-size="13" fill="#7865cc">View model request and memory  ▾</text>
+
+    <rect x="20" y="607" width="335" height="112" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="36" y="635" font-size="15" font-weight="bold">Other activity</text>
+    <text x="36" y="660" font-size="13" fill="#68717d">4 not selected · 1 missed · 1 pending</text>
+    <text x="36" y="694" font-size="14" font-weight="bold" fill="#7865cc">Show 6 entries  ▾</text>
+  </g>
+</svg>
