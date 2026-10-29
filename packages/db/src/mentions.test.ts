@@ -46,8 +46,14 @@ test('enabled exact mentions route once, persist retries, and retain reply conte
   sql.prepare("UPDATE jobs SET due_at=9999999999999 WHERE source_comment_id=? AND agent_id='mira'").run(reply.id);
   const ayaJob=store.claimJob();assert.equal(ayaJob?.agentId,'aya');
   const context=store.getContext(ayaJob);assert.equal(context.replyToAgentName,'Mira');assert.equal(context.replyToOwnComment,false);assert.equal(context.mentionText,reply.text);
-  store.completeJob(ayaJob,{like:false,comment:null,memory:null});
+  store.completeJob(ayaJob,{like:true,comment:null,memory:null});
   assert.equal((sql.prepare('SELECT outcome FROM jobs WHERE id=?').get(ayaJob.id) as any).outcome,'ignored');
+  assert.equal((sql.prepare("SELECT COUNT(*) AS count FROM likes WHERE post_id=? AND agent_id='aya'").get(post.id) as any).count,0);
+  sql.prepare("UPDATE jobs SET due_at=0 WHERE source_comment_id=? AND agent_id='mira'").run(reply.id);
+  const miraReply=store.claimJob();assert.ok(miraReply);assert.equal(miraReply.agentId,'mira');
+  store.completeJob(miraReply,{like:true,comment:'A reply without a like',memory:null});
+  assert.equal((sql.prepare('SELECT outcome FROM jobs WHERE id=?').get(miraReply.id) as any).outcome,'commented');
+  assert.equal((sql.prepare("SELECT COUNT(*) AS count FROM likes WHERE post_id=? AND agent_id='mira'").get(post.id) as any).count,0);
   const later=store.createOwnerReply(miraComment,'New message @aya');assert.ok(later);
   assert.equal((sql.prepare("SELECT COUNT(*) AS count FROM jobs WHERE agent_id='aya' AND source='mention' AND kind='reply'").get() as any).count,2);
   assert.equal((sql.prepare("SELECT source FROM jobs WHERE source_comment_id=? AND agent_id='mira'").get(later.id) as any).source,'notification');

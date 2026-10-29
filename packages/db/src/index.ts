@@ -139,7 +139,9 @@ export function completeJob(job: Job, decision: Decision | null, forcedOutcome?:
     if (decision.comment?.trim()) getDb().prepare(`INSERT INTO comments(post_id,parent_id,author_type,agent_id,text) VALUES(?,?,'agent',?,?)`).run(job.postId,job.kind === 'reply' ? job.sourceCommentId : null,job.agentId,decision.comment.trim().slice(0,280));
     if (decision.memory?.trim()) { const old = (getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any)?.content || ''; getDb().prepare('UPDATE memories SET content=? WHERE agent_id=?').run((old+'\n'+decision.memory.trim()).trim().slice(-2000),job.agentId); }
   }
-  const outcome = forcedOutcome || (!decision || (!decision.like && !decision.comment?.trim()) ? 'ignored' : decision.like && decision.comment?.trim() ? 'liked_and_commented' : decision.like ? 'liked' : 'commented');
+  const liked = job.kind === 'post' && decision?.like === true;
+  const commented = Boolean(decision?.comment?.trim());
+  const outcome = forcedOutcome || (liked && commented ? 'liked_and_commented' : liked ? 'liked' : commented ? 'commented' : 'ignored');
   const afterMemory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any)?.content||'';
   getDb().prepare(`UPDATE jobs SET status='done',outcome=?,completed_at=?,memory_before=?,memory_after=?,error=NULL WHERE id=?`).run(outcome,Date.now(),oldMemory,afterMemory,job.id);
   getDb().prepare(`UPDATE job_attempts SET status=?,finished_at=?,model_response=?,memory_before=?,memory_after=?,memory_evaluation=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(outcome,Date.now(),decision?JSON.stringify(decision):null,oldMemory,afterMemory,decision?.memoryEvaluation||null,job.id);
