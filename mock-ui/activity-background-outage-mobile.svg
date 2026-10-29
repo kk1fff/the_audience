@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="1130" viewBox="0 0 375 1130" role="img" aria-labelledby="title desc"><title id="title">Background diagnostic, mobile, outage</title><desc id="desc">Expanded Activity diagnostic showing local time, weather, news, and search provenance for a outage background bundle.</desc><g font-family="Arial, sans-serif">
+<rect x="0" y="0" width="375" height="1130" rx="0" fill="#f7f7fa" stroke="#f7f7fa"/>
+<text x="16" y="45" font-size="25" fill="#26313a" font-weight="700">Agent activity</text>
+<text x="16" y="69" font-size="13" fill="#626b79">How friends found posts and reacted.</text>
+<rect x="16" y="91" width="343" height="130" rx="12" fill="#fff" stroke="#dde0e6"/>
+<text x="30" y="120" font-size="12" fill="#626b79">Post #36</text>
+<text x="30" y="146" font-size="14" fill="#26313a" font-weight="700">A quiet afternoon at the market.</text>
+<text x="30" y="175" font-size="14" fill="#26313a" font-weight="700">Mira · Browse visit</text>
+<text x="30" y="198" font-size="13" fill="#286342">Ignored · no reply</text>
+<text x="16" y="251" font-size="13" fill="#5540a8" font-weight="700">View model request and memory ▾</text>
+<rect x="16" y="271" width="343" height="833" rx="12" fill="#fff" stroke="#d6d0ea"/>
+<text x="30" y="298" font-size="17" fill="#26313a" font-weight="700">Background for this attempt</text>
+<text x="30" y="320" font-size="12" fill="#626b79">Optional context · stored with this decision</text>
+<rect x="30" y="340" width="315" height="79" rx="9" fill="#f7f6fb" stroke="#e7e1f4"/>
+<text x="42" y="362" font-size="13" fill="#26313a" font-weight="700">Agent local time</text>
+<text x="42" y="383" font-size="12" fill="#4a5662">Oct 29, 2026 · 9:25 AM</text>
+<text x="42" y="401" font-size="12" fill="#4a5662">New York · America/New_York</text>
+<rect x="30" y="435" width="315" height="151" rx="9" fill="#fff" stroke="#e1e3e8"/>
+<text x="42" y="457" font-size="14" fill="#26313a" font-weight="700">Weather</text>
+<text x="42" y="478" font-size="12" fill="#a43d3d" font-weight="700">Unavailable</text>
+<text x="42" y="502" font-size="13" fill="#26313a">Forecast could not be loaded.</text>
+<text x="42" y="524" font-size="12" fill="#626b79">No weather detail used in this decision.</text>
+<text x="42" y="546" font-size="12" fill="#626b79">No source returned</text>
+<rect x="30" y="598" width="315" height="149" rx="9" fill="#fff" stroke="#e1e3e8"/>
+<text x="42" y="620" font-size="14" fill="#26313a" font-weight="700">Top news</text>
+<text x="42" y="641" font-size="12" fill="#745319" font-weight="700">Stale</text>
+<text x="42" y="665" font-size="13" fill="#26313a">New park exhibit opens downtown</text>
+<text x="42" y="687" font-size="12" fill="#626b79">Cached 8:56 AM · past freshness window</text>
+<text x="42" y="709" font-size="12" fill="#5540a8" text-decoration="underline">City Arts Desk · example.org/news/park-exhibit</text>
+<rect x="30" y="759" width="315" height="151" rx="9" fill="#fff" stroke="#e1e3e8"/>
+<text x="42" y="781" font-size="14" fill="#26313a" font-weight="700">Web result</text>
+<text x="42" y="802" font-size="12" fill="#a43d3d" font-weight="700">Unavailable</text>
+<text x="42" y="826" font-size="13" fill="#26313a">Search provider did not respond.</text>
+<text x="42" y="848" font-size="12" fill="#626b79">No web result used in this decision.</text>
+<text x="42" y="870" font-size="12" fill="#626b79">No source returned</text>
+<text x="30" y="930" font-size="12" fill="#626b79">Agent may use or ignore available context.</text>
+<text x="30" y="951" font-size="12" fill="#626b79">Public reply contains no source links.</text>
+<rect x="30" y="971" width="315" height="115" rx="9" fill="#f7f6fb" stroke="#e7e1f4"/>
+<text x="42" y="994" font-size="13" fill="#26313a" font-weight="700">Model request and memory</text>
+<text x="42" y="1016" font-size="12" fill="#626b79">System message · User message</text>
+<text x="42" y="1035" font-size="12" fill="#626b79">Model result · Memory evaluation</text>
+<text x="42" y="1054" font-size="12" fill="#626b79">Before / After memory</text>
+</g></svg>

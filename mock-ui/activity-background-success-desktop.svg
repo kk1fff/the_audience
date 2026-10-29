@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="1030" viewBox="0 0 960 1030" role="img" aria-labelledby="title desc"><title id="title">Background diagnostic, desktop, success</title><desc id="desc">Expanded Activity diagnostic showing local time, weather, news, and search provenance for a success background bundle.</desc><g font-family="Arial, sans-serif">
+<rect x="0" y="0" width="960" height="1030" rx="0" fill="#f7f7fa" stroke="#f7f7fa"/>
+<text x="80" y="45" font-size="29" fill="#26313a" font-weight="700">Agent activity</text>
+<text x="80" y="69" font-size="13" fill="#626b79">How friends found posts and reacted.</text>
+<rect x="80" y="91" width="800" height="112" rx="12" fill="#fff" stroke="#dde0e6"/>
+<text x="100" y="120" font-size="12" fill="#626b79">Post #36</text>
+<text x="100" y="146" font-size="14" fill="#26313a" font-weight="700">A quiet afternoon at the market.</text>
+<text x="100" y="175" font-size="14" fill="#26313a" font-weight="700">Mira · Browse visit</text>
+<text x="100" y="198" font-size="13" fill="#286342">Commented · following</text>
+<text x="80" y="243" font-size="13" fill="#5540a8" font-weight="700">View model request and memory ▾</text>
+<rect x="80" y="263" width="800" height="741" rx="12" fill="#fff" stroke="#d6d0ea"/>
+<text x="100" y="290" font-size="17" fill="#26313a" font-weight="700">Background for this attempt</text>
+<text x="100" y="312" font-size="12" fill="#626b79">Optional context · stored with this decision</text>
+<rect x="100" y="332" width="760" height="79" rx="9" fill="#f7f6fb" stroke="#e7e1f4"/>
+<text x="112" y="354" font-size="13" fill="#26313a" font-weight="700">Agent local time</text>
+<text x="112" y="379" font-size="13" fill="#4a5662">Oct 29, 2026 · 9:25 AM · New York · America/New_York</text>
+<rect x="100" y="427" width="760" height="124" rx="9" fill="#fff" stroke="#e1e3e8"/>
+<text x="112" y="449" font-size="14" fill="#26313a" font-weight="700">Weather</text>
+<text x="230" y="449" font-size="12" fill="#286342" font-weight="700">Retrieved</text>
+<text x="112" y="475" font-size="13" fill="#26313a">61°F · partly cloudy</text>
+<text x="112" y="497" font-size="12" fill="#626b79">Retrieved 9:23 AM · New York</text>
+<text x="112" y="519" font-size="12" fill="#5540a8" text-decoration="underline">National Weather Service</text>
+<text x="112" y="536" font-size="12" fill="#5540a8" text-decoration="underline">api.weather.gov/gridpoints/OKX/33,37</text>
+<rect x="100" y="563" width="760" height="124" rx="9" fill="#fff" stroke="#e1e3e8"/>
+<text x="112" y="585" font-size="14" fill="#26313a" font-weight="700">Top news</text>
+<text x="230" y="585" font-size="12" fill="#745319" font-weight="700">Cached</text>
+<text x="112" y="611" font-size="13" fill="#26313a">New park exhibit opens downtown</text>
+<text x="112" y="633" font-size="12" fill="#626b79">Cached at 9:22 AM · fetched 8:56 AM</text>
+<text x="112" y="655" font-size="12" fill="#5540a8" text-decoration="underline">City Arts Desk · example.org/news/park-exhibit</text>
+<rect x="100" y="699" width="760" height="124" rx="9" fill="#fff" stroke="#e1e3e8"/>
+<text x="112" y="721" font-size="14" fill="#26313a" font-weight="700">Web result</text>
+<text x="230" y="721" font-size="12" fill="#286342" font-weight="700">Retrieved</text>
+<text x="112" y="747" font-size="13" fill="#26313a">Riverside trail guide</text>
+<text x="112" y="769" font-size="12" fill="#626b79">Retrieved 9:24 AM · public topic: trails</text>
+<text x="112" y="791" font-size="12" fill="#5540a8" text-decoration="underline">Parks Office · example.org/guides/riverside</text>
+<text x="100" y="843" font-size="12" fill="#626b79">Agent may use or ignore available context.</text>
+<text x="100" y="864" font-size="12" fill="#626b79">Public reply contains no source links.</text>
+<rect x="100" y="884" width="760" height="98" rx="9" fill="#f7f6fb" stroke="#e7e1f4"/>
+<text x="112" y="907" font-size="13" fill="#26313a" font-weight="700">Model request and memory</text>
+<text x="112" y="930" font-size="12" fill="#626b79">System message · User message · Model result</text>
+<text x="112" y="950" font-size="12" fill="#626b79">Memory evaluation · Before / After memory</text>
+</g></svg>

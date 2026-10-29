@@ -1,0 +1,28 @@
+import {test} from 'node:test';
+import {strict as assert} from 'node:assert';
+import {mkdtempSync,mkdirSync,writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
+
+test('legacy agent and attempt tables migrate; background stays on the attempt and links never reach comments',async()=>{
+  const root=mkdtempSync(join(tmpdir(),'social-background-'));const agents=join(root,'agents');mkdirSync(join(agents,'one'),{recursive:true});
+  writeFileSync(join(agents,'one','profile.json'),JSON.stringify({name:'One',handle:'one',persona:'Friendly',enabled:true,city:'Kyoto',timeZone:'Asia/Tokyo',latitude:35.0116,longitude:135.7681}));
+  process.env.DATABASE_PATH=join(root,'social.sqlite');process.env.AGENTS_DIR=agents;
+  const db=new DatabaseSync(process.env.DATABASE_PATH);
+  db.exec("CREATE TABLE agents(id TEXT PRIMARY KEY,name TEXT NOT NULL,handle TEXT NOT NULL,persona TEXT NOT NULL,avatar_color TEXT NOT NULL,enabled INTEGER NOT NULL)");
+  db.exec("CREATE TABLE job_attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id INTEGER NOT NULL,started_at INTEGER NOT NULL,finished_at INTEGER,status TEXT NOT NULL,error TEXT,prompt_text TEXT,image_ids TEXT)");
+  const store=await import('./index.ts');store.syncAgents();
+  const columns=(db.prepare('PRAGMA table_info(agents)').all() as {name:string}[]).map(row=>row.name);
+  assert.ok(columns.includes('time_zone')&&columns.includes('latitude'));
+  assert.ok((db.prepare('PRAGMA table_info(job_attempts)').all() as {name:string}[]).some(row=>row.name==='background_json'));
+  const post=store.createPost('The museum was lovely');db.prepare("UPDATE jobs SET due_at=0 WHERE status='pending'").run();
+  const job=store.claimJob();assert.ok(job);const context=store.getContext(job);assert.equal(context.agent.city,'Kyoto');assert.equal(context.agent.timeZone,'Asia/Tokyo');
+  const background={city:'Kyoto',timeZone:'Asia/Tokyo',localDateTime:'Thursday, October 29, 2026',recordedAt:123,items:[{kind:'search',status:'retrieved',title:'Museum history',summary:'Background',sourceTitle:'Example',sourceUrl:'https://example.org/museum',publishedAt:null,retrievedAt:123,fetchedAt:123,error:null}]};
+  store.recordPayload(job,{system:'System',user:'Prompt',imageIds:[],provider:'mock',model:'mock',memoryBefore:'',background});
+  assert.equal(store.completeJob(job,{like:false,comment:'I found [this source](https://example.org/museum) and https://example.com/path useful.',memory:null}),'commented');
+  const saved=db.prepare("SELECT text FROM comments WHERE author_type='agent' AND post_id=?").get(post.id) as {text:string};
+  assert.equal(saved.text,'I found this source and useful.');
+  const attempt=store.getActivityAttempts(job.id)[0] as {backgroundJson:string};assert.deepEqual(JSON.parse(attempt.backgroundJson),background);
+  assert.equal(JSON.parse(attempt.backgroundJson).items[0].sourceUrl,'https://example.org/museum');
+});

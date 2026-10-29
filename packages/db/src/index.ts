@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync, readdirSync, existsSync, writeFileSync, unlinkSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
-import { delayMs, pickAgents, type AgentProfile, type Decision } from '@social/core';
+import { delayMs, pickAgents, stripLinks, type AgentProfile, type Decision } from '@social/core';
 const repoRoot = resolve(process.cwd(), '../..');
 const path = resolve(repoRoot, process.env.DATABASE_PATH || 'data/social.sqlite');
 const uploadsDir = join(dirname(path), 'uploads');
@@ -24,9 +24,11 @@ function getDb(): DatabaseSync {
   db.exec('CREATE INDEX IF NOT EXISTS images_for_post_preview ON images(post_id,comment_id)');
   db.exec('CREATE INDEX IF NOT EXISTS jobs_by_post ON jobs(post_id DESC)');
   const columns = new Set((db.prepare('PRAGMA table_info(jobs)').all() as any[]).map(row => row.name));
+  const agentColumns=new Set((db.prepare('PRAGMA table_info(agents)').all() as {name:string}[]).map(row=>row.name));
+  for(const [name,type] of [['city','TEXT'],['time_zone','TEXT'],['latitude','REAL'],['longitude','REAL']] as const) if(!agentColumns.has(name)) db.exec(`ALTER TABLE agents ADD COLUMN ${name} ${type}`);
   for (const [name, type] of [['outcome','TEXT'],['completed_at','INTEGER']] as const) if (!columns.has(name)) db.exec(`ALTER TABLE jobs ADD COLUMN ${name} ${type}`);
   const attemptColumns = new Set((db.prepare('PRAGMA table_info(job_attempts)').all() as any[]).map(row=>row.name));
-  for(const name of ['system_text','user_text','provider','model','model_response','memory_before','memory_after','memory_evaluation']) if(!attemptColumns.has(name)) db.exec(`ALTER TABLE job_attempts ADD COLUMN ${name} TEXT`);
+  for(const name of ['system_text','user_text','provider','model','model_response','memory_before','memory_after','memory_evaluation','background_json']) if(!attemptColumns.has(name)) db.exec(`ALTER TABLE job_attempts ADD COLUMN ${name} TEXT`);
   for(const [name,type] of [['mock_miss','INTEGER NOT NULL DEFAULT 0'],['memory_before','TEXT'],['memory_after','TEXT']] as const) if(!columns.has(name)) db.exec(`ALTER TABLE jobs ADD COLUMN ${name} ${type}`);
   if(!columns.has('source')) db.exec("ALTER TABLE jobs ADD COLUMN source TEXT NOT NULL DEFAULT 'notification'");
   if(!columns.has('discovered_at')) db.exec('ALTER TABLE jobs ADD COLUMN discovered_at INTEGER');
@@ -51,7 +53,9 @@ export function syncAgents(directory = resolve(repoRoot, process.env.AGENTS_DIR 
   const reservedIntervals=new Set(profiles.map(({profile})=>profile.feedCheckIntervalMinutes).filter((minutes):minutes is number=>minutes!==undefined));
   for (const {id,profile} of profiles) {
     if (!/^[a-z0-9_-]+$/.test(id) || !profile.name || !profile.handle || !profile.persona) throw new Error(`Invalid agent profile: ${id}`);
-    getDb().prepare(`INSERT INTO agents(id,name,handle,persona,avatar_color,enabled) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,handle=excluded.handle,persona=excluded.persona,avatar_color=excluded.avatar_color,enabled=excluded.enabled`).run(id, profile.name, profile.handle, profile.persona, profile.avatarColor || '#777', profile.enabled === false ? 0 : 1);
+    if(profile.timeZone){try{new Intl.DateTimeFormat('en',{timeZone:profile.timeZone});}catch{throw new Error(`Invalid agent time zone: ${id}`);}}
+    if((profile.latitude===undefined)!==(profile.longitude===undefined)||profile.latitude!==undefined&&(!Number.isFinite(profile.latitude)||Math.abs(profile.latitude)>90||!Number.isFinite(profile.longitude)||Math.abs(profile.longitude!)>180))throw new Error(`Invalid agent coordinates: ${id}`);
+    getDb().prepare(`INSERT INTO agents(id,name,handle,persona,avatar_color,enabled,city,time_zone,latitude,longitude) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,handle=excluded.handle,persona=excluded.persona,avatar_color=excluded.avatar_color,enabled=excluded.enabled,city=excluded.city,time_zone=excluded.time_zone,latitude=excluded.latitude,longitude=excluded.longitude`).run(id, profile.name, profile.handle, profile.persona, profile.avatarColor || '#777', profile.enabled === false ? 0 : 1,profile.city||null,profile.timeZone||'UTC',profile.latitude??null,profile.longitude??null);
     const seed = join(directory, id, 'memory.md');
     getDb().prepare('INSERT OR IGNORE INTO memories(agent_id,content) VALUES(?,?)').run(id, existsSync(seed) ? readFileSync(seed, 'utf8').trim() : '');
     const configuredInterval = (profile as AgentProfile).feedCheckIntervalMinutes;
@@ -159,14 +163,14 @@ export function createOwnerReply(parentId: number, text: string, imageIds: strin
 }); }
 export type Job = { id: number; kind: 'post'|'reply'; source: 'notification'|'feed'|'mention'|'browse'|'peer'; postId: number; sourceCommentId: number|null; agentId: string; attempts: number; mockMiss: boolean; mentionedHandle:string|null; browseId:number|null; browseReason:string|null; seenCommentId:number };
 export function claimJob(): Job | null { return transaction(() => {
-  const job = getDb().prepare(`SELECT j.id,j.kind,j.source,j.post_id AS postId,j.source_comment_id AS sourceCommentId,j.agent_id AS agentId,j.attempts,j.mock_miss AS mockMiss,j.mentioned_handle AS mentionedHandle,j.browse_id AS browseId,j.browse_reason AS browseReason,(SELECT COALESCE(MAX(c.id),0) FROM comments c WHERE c.post_id=j.post_id) AS seenCommentId FROM jobs j WHERE j.status='pending' AND j.due_at<=? ORDER BY j.due_at,j.id LIMIT 1`).get(Date.now()) as Job | undefined;
+  const job = getDb().prepare(`SELECT j.id,j.kind,j.source,j.post_id AS postId,j.source_comment_id AS sourceCommentId,j.agent_id AS agentId,j.attempts,j.mock_miss AS mockMiss,j.mentioned_handle AS mentionedHandle,j.browse_id AS browseId,j.browse_reason AS browseReason,(SELECT COALESCE(MAX(c.id),0) FROM comments c WHERE c.post_id=j.post_id) AS seenCommentId FROM jobs j WHERE j.status='pending' AND j.due_at<=? ORDER BY j.due_at,j.id LIMIT 1`).get(Date.now()) as unknown as Job | undefined;
   if (!job) return null;
   getDb().prepare("UPDATE jobs SET status='running',attempts=attempts+1 WHERE id=?").run(job.id);
   getDb().prepare(`INSERT INTO job_attempts(job_id,started_at,status) VALUES(?,?,'running')`).run(job.id,Date.now());
   return job;
 }); }
 export function getContext(job: Job) {
-  const agent = getDb().prepare('SELECT id,name,persona FROM agents WHERE id=?').get(job.agentId) as any;
+  const agent = getDb().prepare('SELECT id,name,persona,city,time_zone AS timeZone,latitude,longitude FROM agents WHERE id=?').get(job.agentId) as any;
   const memory = getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any;
   const post = getDb().prepare('SELECT text FROM posts WHERE id=?').get(job.postId) as any;
   const commentRows = getDb().prepare('SELECT author_type AS authorType,agent_id AS agentId,text,id,parent_id AS parentId FROM comments WHERE post_id=? ORDER BY id').all(job.postId) as {id:number}[];
@@ -187,7 +191,7 @@ export function completeJob(job: Job, decision: Decision | null, forcedOutcome?:
   const oldMemory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any)?.content||'';
   const modelDecision=decision;
   let overloadCount:number|null=null,overloadChance:number|null=null,overloadSuppressed=false;
-  if(job.source==='peer' && decision?.comment?.trim() && !forcedOutcome){
+  if(job.source==='peer' && decision?.comment && stripLinks(decision.comment) && !forcedOutcome){
     overloadCount=(getDb().prepare(`SELECT COUNT(*) AS count FROM jobs WHERE agent_id=? AND id<>? AND source IN ('notification','peer') AND delivered_at>? AND delivered_at<=? AND outcome IS NOT 'missed' AND status<>'not_selected'`).get(job.agentId,job.id,Date.now()-3600000,Date.now()) as {count:number}).count;
     overloadChance=Math.min(.75,.1*Math.max(0,overloadCount-2));
     if(random()<overloadChance) {overloadSuppressed=true;decision={...decision,comment:null,memory:null};}
@@ -195,7 +199,8 @@ export function completeJob(job: Job, decision: Decision | null, forcedOutcome?:
   let liked=false,commentId=0;
   if (decision && !forcedOutcome) {
     if (job.kind === 'post' && decision.like) liked=getDb().prepare('INSERT OR IGNORE INTO likes(post_id,agent_id) VALUES(?,?)').run(job.postId,job.agentId).changes>0;
-    if (decision.comment?.trim()) commentId=Number(getDb().prepare(`INSERT INTO comments(post_id,parent_id,author_type,agent_id,text) VALUES(?,?,'agent',?,?)`).run(job.postId,job.kind === 'reply'||job.source==='browse' ? job.sourceCommentId : null,job.agentId,decision.comment.trim().slice(0,280)).lastInsertRowid);
+    const safeComment=decision.comment?stripLinks(decision.comment).slice(0,280):'';
+    if (safeComment) commentId=Number(getDb().prepare(`INSERT INTO comments(post_id,parent_id,author_type,agent_id,text) VALUES(?,?,'agent',?,?)`).run(job.postId,job.kind === 'reply'||job.source==='browse' ? job.sourceCommentId : null,job.agentId,safeComment).lastInsertRowid);
     if (decision.memory?.trim()) { const old = (getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any)?.content || ''; getDb().prepare('UPDATE memories SET content=? WHERE agent_id=?').run((old+'\n'+decision.memory.trim()).trim().slice(-2000),job.agentId); }
   }
   const commented = commentId>0;
@@ -235,7 +240,7 @@ function getImagesForComment(id:number): StoredImage[] { return (getDb().prepare
 function attachImages(ids:string[], postId:number, commentId:number|null) { for (const id of ids) { const result=getDb().prepare('UPDATE images SET post_id=?,comment_id=? WHERE id=? AND post_id IS NULL AND comment_id IS NULL').run(postId,commentId,id); if(result.changes!==1) throw new Error('Invalid image attachment'); } }
 export function storeImage(bytes:Buffer,mimeType:string,description:string|null=null): StoredImage { mkdirSync(uploadsDir,{recursive:true}); const id=randomUUID();const ext=mimeType==='image/png'?'png':mimeType==='image/webp'?'webp':'jpg';const fileName=`${id}.${ext}`;const filePath=join(uploadsDir,fileName);writeFileSync(filePath,bytes);try { getDb().prepare('INSERT INTO images(id,mime_type,byte_size,file_name,description) VALUES(?,?,?,?,?)').run(id,mimeType,bytes.length,fileName,description); } catch(error) { unlinkSync(filePath);throw error; }return {id,mimeType,byteSize:bytes.length,path:filePath,description}; }
 export function deleteUnattachedImages(ids:string[]) { for(const id of ids){const row=getDb().prepare('SELECT * FROM images WHERE id=? AND post_id IS NULL AND comment_id IS NULL').get(id) as any;if(row){getDb().prepare('DELETE FROM images WHERE id=?').run(id);try{unlinkSync(join(uploadsDir,row.file_name));}catch{}}} }
-export function recordPayload(job:Job,payload:{system:string;user:string;imageIds:string[];provider:string;model:string;memoryBefore:string}) { getDb().prepare(`UPDATE job_attempts SET system_text=?,user_text=?,image_ids=?,provider=?,model=?,memory_before=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(payload.system,payload.user,JSON.stringify(payload.imageIds),payload.provider,payload.model,payload.memoryBefore,job.id); }
+export function recordPayload(job:Job,payload:{system:string;user:string;imageIds:string[];provider:string;model:string;memoryBefore:string;background?:unknown}) { getDb().prepare(`UPDATE job_attempts SET system_text=?,user_text=?,image_ids=?,provider=?,model=?,memory_before=?,background_json=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(payload.system,payload.user,JSON.stringify(payload.imageIds),payload.provider,payload.model,payload.memoryBefore,payload.background===undefined?null:JSON.stringify(payload.background),job.id); }
 export function getActivity(limit=50,offset=0) { return getDb().prepare(`SELECT j.id,j.kind,j.source,j.discovered_at AS discoveredAt,j.visited_at AS visitedAt,j.browse_reason AS browseReason,j.follow_state AS followState,j.post_id AS postId,p.text AS postText,pi.id AS postImageId,pi.description AS postImageDescription,j.source_comment_id AS sourceCommentId,source_agent.name AS sourceAgentName,j.delivered_at AS deliveredAt,j.overload_count AS overloadCount,j.overload_chance AS overloadChance,j.mentioned_handle AS mentionedHandle,(SELECT a2.name FROM comments c2 JOIN comments parent ON parent.id=c2.parent_id JOIN agents a2 ON a2.id=parent.agent_id WHERE c2.id=j.source_comment_id) AS replyToAgentName,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN comments source_comment ON source_comment.id=j.source_comment_id LEFT JOIN agents source_agent ON source_agent.id=source_comment.agent_id LEFT JOIN posts p ON p.id=j.post_id LEFT JOIN images pi ON pi.id=(SELECT i.id FROM images i WHERE i.post_id=j.post_id AND i.comment_id IS NULL ORDER BY i.rowid LIMIT 1) LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) ORDER BY j.id DESC LIMIT ? OFFSET ?`).all(Math.min(100,Math.max(1,limit)),Math.max(0,offset)); }
 export function getActivityPage(beforePostId: number | null = null, pageSize = 5) {
   if (beforePostId !== null && (!Number.isSafeInteger(beforePostId) || beforePostId <= 0)) throw new Error('Invalid activity cursor');
@@ -249,7 +254,7 @@ export function getActivityPage(beforePostId: number | null = null, pageSize = 5
   const items = getDb().prepare(`SELECT j.id,j.kind,j.source,j.discovered_at AS discoveredAt,j.visited_at AS visitedAt,j.browse_reason AS browseReason,j.follow_state AS followState,j.post_id AS postId,p.text AS postText,pi.id AS postImageId,pi.description AS postImageDescription,j.source_comment_id AS sourceCommentId,source_agent.name AS sourceAgentName,j.delivered_at AS deliveredAt,j.overload_count AS overloadCount,j.overload_chance AS overloadChance,j.mentioned_handle AS mentionedHandle,(SELECT a2.name FROM comments c2 JOIN comments parent ON parent.id=c2.parent_id JOIN agents a2 ON a2.id=parent.agent_id WHERE c2.id=j.source_comment_id) AS replyToAgentName,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN comments source_comment ON source_comment.id=j.source_comment_id LEFT JOIN agents source_agent ON source_agent.id=source_comment.agent_id LEFT JOIN posts p ON p.id=j.post_id LEFT JOIN images pi ON pi.id=(SELECT i.id FROM images i WHERE i.post_id=j.post_id AND i.comment_id IS NULL ORDER BY i.rowid LIMIT 1) LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) WHERE j.post_id IN (${placeholders}) ORDER BY j.post_id DESC,j.id DESC`).all(...selected);
   return {items,nextCursor:groups.length>size?selected[selected.length-1]:null};
 }
-export function getActivityAttempts(jobId:number) { return getDb().prepare('SELECT id,started_at AS startedAt,finished_at AS finishedAt,status,error,system_text AS systemText,user_text AS userText,prompt_text AS legacyPromptText,provider,model,model_response AS modelResponse,memory_before AS memoryBefore,memory_after AS memoryAfter,memory_evaluation AS memoryEvaluation,image_ids AS imageIds FROM job_attempts WHERE job_id=? ORDER BY id').all(jobId); }
+export function getActivityAttempts(jobId:number) { return getDb().prepare('SELECT id,started_at AS startedAt,finished_at AS finishedAt,status,error,system_text AS systemText,user_text AS userText,prompt_text AS legacyPromptText,provider,model,model_response AS modelResponse,memory_before AS memoryBefore,memory_after AS memoryAfter,memory_evaluation AS memoryEvaluation,image_ids AS imageIds,background_json AS backgroundJson FROM job_attempts WHERE job_id=? ORDER BY id').all(jobId); }
 export function getBrowseSchedule() { return getDb().prepare(`SELECT a.id AS agentId,a.name AS agentName,a.avatar_color AS avatarColor,f.next_check_at AS nextBrowseAt FROM agent_feed_checks f JOIN agents a ON a.id=f.agent_id WHERE a.enabled=1 ORDER BY f.next_check_at,a.name`).all(); }
 export function getRecentBrowseResults(limit=5) {
   const runs=getDb().prepare(`SELECT b.id,b.agent_id AS agentId,a.name AS agentName,b.started_at AS startedAt,b.completed_at AS completedAt FROM browse_runs b JOIN agents a ON a.id=b.agent_id ORDER BY b.started_at DESC,b.id DESC LIMIT ?`).all(Math.min(20,Math.max(1,limit))) as {id:number;agentId:string;agentName:string;startedAt:number;completedAt:number|null}[];

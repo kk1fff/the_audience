@@ -3,5 +3,9 @@
   "handle": "leo_builds",
   "persona": "Practical maker who enjoys projects and clever solutions. Be upbeat but concise.",
   "avatarColor": "#e09365",
-  "enabled": true
+  "enabled": true,
+  "city": "Berlin",
+  "timeZone": "Europe/Berlin",
+  "latitude": 52.52,
+  "longitude": 13.405
 }

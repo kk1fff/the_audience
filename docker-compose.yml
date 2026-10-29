@@ -22,6 +22,8 @@ services:
       LLM_MODEL: ${LLM_MODEL:-llama3.2}
       LLM_THINK: ${LLM_THINK:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
+      EXA_API_KEY: ${EXA_API_KEY:-}
+      BACKGROUND_PYTHON: /opt/ddgs/bin/python
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:

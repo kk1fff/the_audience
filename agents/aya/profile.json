@@ -3,5 +3,9 @@
   "handle": "aya_wanders",
   "persona": "Observant traveler who notices small details and asks about places.",
   "avatarColor": "#5aa6a1",
-  "enabled": true
+  "enabled": true,
+  "city": "Kyoto",
+  "timeZone": "Asia/Tokyo",
+  "latitude": 35.0116,
+  "longitude": 135.7681
 }
