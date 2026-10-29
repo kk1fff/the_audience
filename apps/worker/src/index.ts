@@ -12,7 +12,7 @@ async function tick(){scheduleFeedChecks();const job=claimJob();if(!job)return;t
   const background=await buildBackground(context).catch(error=>backgroundUnavailable(context,error));
   const messages=buildMessages(context,job.kind,job.source,background);
   recordPayload(job,{...messages,imageIds:context.images.map(image=>image.id),provider,model:provider==='mock'?'mock':process.env.LLM_MODEL||'',memoryBefore:context.memory,background});
-  const decision=await decide(context,job.kind,messages,job.source);const outcome=completeJob(job,decision);
+  const decision=await decide(context,job.kind,messages,job.source,background);const outcome=completeJob(job,decision);
   console.log(JSON.stringify({event:job.source,jobId:job.id,agentId:job.agentId,outcome}));
 }catch(error){failJob(job,error);console.error(JSON.stringify({event:`${job.source}_error`,jobId:job.id,agentId:job.agentId,error:String(error)}));}}
 let busy=false;setInterval(()=>{if(busy)return;busy=true;void tick().finally(()=>{busy=false;});},1000);

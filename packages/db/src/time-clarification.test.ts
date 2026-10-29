@@ -1,0 +1,38 @@
+import {test} from 'node:test';
+import {strict as assert} from 'node:assert';
+import {mkdtempSync,mkdirSync,writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
+
+test('subject-changing model reply is replaced before saving and a state follow-up resolves time',async()=>{
+  const root=mkdtempSync(join(tmpdir(),'social-time-clarification-'));const agents=join(root,'agents');mkdirSync(join(agents,'river'),{recursive:true});
+  writeFileSync(join(agents,'river','profile.json'),JSON.stringify({name:'River',handle:'river_sounds',persona:'Friendly',enabled:true,city:'Nashville',timeZone:'America/Chicago',latitude:36.1627,longitude:-86.7816}));
+  process.env.DATABASE_PATH=join(root,'social.sqlite');process.env.AGENTS_DIR=agents;
+  const store=await import('./index.ts');const {createBackgroundBuilder,buildMessages,decide}=await import('../../llm/src/index.ts');
+  store.syncAgents();const raw=new DatabaseSync(process.env.DATABASE_PATH);
+  const post=store.createPost('@river_sounds I am in Seattle this afternoon.');raw.prepare("UPDATE jobs SET due_at=0,mock_miss=0 WHERE post_id=?").run(post.id);
+  const first=store.claimJob();assert.ok(first);store.completeJob(first,{like:false,comment:'Happy to help.',memory:null});
+  const agentComment=raw.prepare("SELECT id FROM comments WHERE post_id=? AND author_type='agent'").get(post.id) as {id:number};
+  const question=store.createOwnerReply(agentComment.id,"What time is it right now in Springfield? I haven't said which state or country.");assert.ok(question);
+  raw.prepare("UPDATE jobs SET due_at=0,mock_miss=0 WHERE source_comment_id=?").run(question.id);
+  const job=store.claimJob();assert.ok(job);const context=store.getContext(job);
+  const instant=Date.UTC(2026,9,29,18);const background=await createBackgroundBuilder({now:()=>instant,fetcher:(async()=>{throw new Error('offline');}) as typeof fetch})(context);
+  const messages=buildMessages(context,job.kind,job.source,background);
+  assert.equal(background.requestedPlaceLabel,'Springfield');assert.equal(background.timeTargetReason,'needs_state_or_country');
+  const previous={provider:process.env.LLM_PROVIDER,base:process.env.LLM_BASE_URL,model:process.env.LLM_MODEL};const originalFetch=globalThis.fetch;
+  process.env.LLM_PROVIDER='openai_compatible';process.env.LLM_BASE_URL='http://fake-model.test';process.env.LLM_MODEL='deterministic';
+  globalThis.fetch=(async()=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({like:false,comment:'Is Springfield a charming town? Tell me about its scenery!',memory:'Springfield is scenic.'})}}]}),{status:200})) as typeof fetch;
+  let decision;
+  try{decision=await decide(context,job.kind,messages,job.source,background);}finally{globalThis.fetch=originalFetch;for(const [key,value] of Object.entries({LLM_PROVIDER:previous.provider,LLM_BASE_URL:previous.base,LLM_MODEL:previous.model})){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
+  store.recordPayload(job,{...messages,imageIds:[],provider:'openai_compatible',model:'deterministic',memoryBefore:context.memory,background});
+  assert.equal(store.completeJob(job,decision),'commented');
+  const saved=raw.prepare("SELECT id,text FROM comments WHERE post_id=? AND author_type='agent' ORDER BY id DESC LIMIT 1").get(post.id) as {id:number;text:string};
+  assert.equal(saved.text,'Which Springfield do you mean—what state or country? I need that to give its current local time.');
+  assert.equal((raw.prepare('SELECT content FROM memories WHERE agent_id=?').get('river') as {content:string}).content,'');
+  const followup=store.createOwnerReply(saved.id,'Illinois');assert.ok(followup);
+  raw.prepare("UPDATE jobs SET due_at=0,mock_miss=0 WHERE source_comment_id=?").run(followup.id);
+  const next=store.claimJob();assert.ok(next);const nextContext=store.getContext(next);
+  const resolved=await createBackgroundBuilder({now:()=>instant,fetcher:(async()=>{throw new Error('offline');}) as typeof fetch})(nextContext);
+  assert.equal(resolved.requestedTime?.place,'Springfield, Illinois');assert.match(resolved.requestedTime!.localDateTime,/1:00 PM/);
+});
