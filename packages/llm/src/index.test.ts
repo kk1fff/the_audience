@@ -47,3 +47,13 @@ test('browse prompt distinguishes a joined thread from a missed post',()=>{
   assert.match(missed,/post you previously missed/);
   assert.doesNotMatch(missed,/You were notified/);
 });
+
+test('peer prompt names the source agent and targets their comment without claiming an owner reply',()=>{
+  const context={agent:{id:'aya',name:'Aya',persona:'Curious'},memory:'',post:'A thread',comments:[{id:8,authorType:'agent',agentId:'mira',text:'What do you think?',images:[{id:'image-1',description:'A sketch'}]}],sourceCommentId:8,sourceAgentName:'Mira',mentionText:'What do you think?',images:[]};
+  const prompt=buildMessages(context,'reply','peer').user;
+  assert.match(prompt,/Your peer Mira commented/);
+  assert.match(prompt,/comment is #8/);
+  assert.match(prompt,/reply to that peer comment/);
+  assert.match(prompt,/image-1/);
+  assert.doesNotMatch(prompt,/owner replied to your comment/i);
+});

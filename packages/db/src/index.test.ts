@@ -21,13 +21,13 @@ test('post, reply, and per-agent memory persist without duplicate reactions', as
   assert.match((sql.prepare('SELECT content FROM memories WHERE agent_id=?').get(agent) as any).content,/Learned something/);
   assert.equal((sql.prepare('SELECT content FROM memories WHERE agent_id=?').get(other) as any).content,'Initial');
   const comment=store.getFeed()[0].comments[0];const replyImage=store.storeImage(Buffer.from([0xff,0xd8,0xff]),'image/jpeg');const reply=store.createOwnerReply(comment.id,'',[replyImage.id]);assert.ok(reply);
-  assert.equal((sql.prepare("SELECT agent_id FROM jobs WHERE kind='reply'").get() as any).agent_id,agent);
-  sql.prepare("UPDATE jobs SET due_at=9999999999999 WHERE kind='post' AND status='pending'").run();sql.prepare('UPDATE jobs SET due_at=0 WHERE kind=\'reply\'').run();const replyJob=store.claimJob();assert.ok(replyJob);assert.deepEqual(store.getContext(replyJob).images.map(i=>i.id),[image.id,replyImage.id]);store.completeJob(replyJob,{like:false,comment:'You are welcome',memory:null});
+  assert.equal((sql.prepare("SELECT agent_id FROM jobs WHERE kind='reply' AND source='notification'").get() as any).agent_id,agent);
+  sql.prepare("UPDATE jobs SET due_at=9999999999999 WHERE kind='post' AND status='pending'").run();sql.prepare("UPDATE jobs SET due_at=0 WHERE kind='reply' AND source='notification'").run();const replyJob=store.claimJob();assert.ok(replyJob);assert.deepEqual(store.getContext(replyJob).images.map(i=>i.id),[image.id,replyImage.id]);store.completeJob(replyJob,{like:false,comment:'You are welcome',memory:null});
   assert.equal(store.getFeed()[0].comments.length,3);
   assert.equal(store.createOwnerReply(reply.id,'Invalid'),null);
   const agentResponse=store.getFeed()[0].comments.find((c:any)=>c.parentId===reply.id);assert.ok(agentResponse);
   const followup=store.createOwnerReply(agentResponse.id,'Another thought');assert.ok(followup);
-  sql.prepare("UPDATE jobs SET due_at=0 WHERE kind='reply' AND status='pending'").run();const missed=store.claimJob();assert.ok(missed);store.completeJob(missed,null,'missed');
+  sql.prepare("UPDATE jobs SET due_at=0 WHERE kind='reply' AND source='notification' AND status='pending'").run();const missed=store.claimJob();assert.ok(missed);store.completeJob(missed,null,'missed');
   assert.equal((store.getActivity().find((item:any)=>item.id===missed.id) as any).outcome,'missed');assert.equal((store.getActivityAttempts(missed.id)[0] as any).systemText,null);
   sql.prepare("UPDATE jobs SET due_at=0 WHERE kind='post' AND status='pending'").run();const ignored=store.claimJob();assert.ok(ignored);store.completeJob(ignored,{like:false,comment:null,memory:null});
   assert.equal((store.getActivity().find((item:any)=>item.id===ignored.id) as any).outcome,'ignored');

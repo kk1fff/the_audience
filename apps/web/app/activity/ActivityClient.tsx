@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { organizePostActivity } from '../../lib/activity';
 
 type Attempt = {id:number;status:string;error:string|null;systemText:string|null;userText:string|null;legacyPromptText:string|null;provider:string|null;model:string|null;modelResponse:string|null;memoryBefore:string|null;memoryAfter:string|null;memoryEvaluation:string|null;imageIds:string[];images:{id:string;description:string|null;context:'post'|'reply'}[];startedAt:number;finishedAt:number|null};
-type Item = {id:number;kind:'post'|'reply';source:'notification'|'feed'|'mention'|'browse';mentionedHandle:string|null;replyToAgentName:string|null;discoveredAt:number|null;visitedAt:number|null;browseReason:string|null;followState:number|null;postId:number;postText:string|null;postImageId:string|null;postImageDescription:string|null;sourceCommentId:number|null;agentName:string;agentId:string;status:string;outcome:string|null;dueAt:number;completedAt:number|null;error:string|null;memoryBefore:string|null;memoryAfter:string|null;attemptHistory:Attempt[]};
+type Item = {id:number;kind:'post'|'reply';source:'notification'|'feed'|'mention'|'browse'|'peer';mentionedHandle:string|null;replyToAgentName:string|null;sourceAgentName:string|null;deliveredAt:number|null;overloadCount:number|null;overloadChance:number|null;discoveredAt:number|null;visitedAt:number|null;browseReason:string|null;followState:number|null;postId:number;postText:string|null;postImageId:string|null;postImageDescription:string|null;sourceCommentId:number|null;agentName:string;agentId:string;status:string;outcome:string|null;dueAt:number;completedAt:number|null;error:string|null;memoryBefore:string|null;memoryAfter:string|null;attemptHistory:Attempt[]};
 type BrowseScheduleItem={agentId:string;agentName:string;avatarColor:string;nextBrowseAt:number};
 type EmptyBrowse={id:number;agentId:string;agentName:string;completedAt:number};
 type ActivityPage = {items:Item[];nextCursor:number|null;cursors:(number|null)[];browseSchedule:BrowseScheduleItem[];recentEmptyBrowses:EmptyBrowse[]};
@@ -17,7 +17,7 @@ function conversationHref(postId:number,cursors:(number|null)[],commentId?:numbe
 
 function label(value: string) { const text = value.replaceAll('_', ' '); return text.charAt(0).toUpperCase() + text.slice(1); }
 function otherCounts(counts: Map<string, number>) {
-  const order = ['not selected', 'missed', 'pending', 'ignored', 'failed', 'running'];
+  const order = ['not selected', 'missed', 'ignored', 'overload suppressed', 'stopped', 'pending', 'failed', 'running'];
   return [...counts].sort(([a],[b]) => (order.indexOf(a) < 0 ? order.length : order.indexOf(a)) - (order.indexOf(b) < 0 ? order.length : order.indexOf(b))).map(([name,count]) => `${count} ${name}`).join(' · ');
 }
 
@@ -49,10 +49,13 @@ function Entry({item,conversation}:{item:Item;conversation:string|null}) {
   const feedCheck = item.source === 'feed';
   const mention = item.source === 'mention';
   const browseVisit=item.source==='browse';
-  const source = mention ? 'Mention' : browseVisit ? 'Browse visit' : feedCheck ? 'Feed check' : item.kind === 'reply' ? 'Reply notification' : 'Post notification';
+  const peer=item.source==='peer';
+  const source = peer ? 'Peer notification' : mention ? 'Mention' : browseVisit ? 'Browse visit' : feedCheck ? 'Feed check' : item.kind === 'reply' ? 'Reply notification' : 'Post notification';
   const mentionState = item.status === 'done' && item.outcome === 'ignored' ? 'Ignored' : item.status === 'done' ? 'Responded' : item.error ? 'Retrying' : 'Pending';
-  const outcome = browseVisit&&item.browseReason==='new_reply'&&item.followState===0&&item.outcome==='ignored'?'Stopped following':browseVisit&&item.browseReason==='new_reply'&&item.outcome==='commented'?'Commented on a new reply':label(item.outcome || item.status);
-  const timing = mention
+  const outcome = peer ? item.outcome==='overload_suppressed'?'Overload suppressed':item.outcome==='stopped'?'Ignored · stopped following':item.outcome==='ignored'?'Ignored · not interested':item.outcome==='commented'?'Responded · commented':item.outcome==='missed'?'Missed':label(item.outcome||item.status) : browseVisit&&item.browseReason==='new_reply'&&item.followState===0&&item.outcome==='ignored'?'Stopped following':browseVisit&&item.browseReason==='new_reply'&&item.outcome==='commented'?'Commented on a new reply':label(item.outcome || item.status);
+  const timing = peer
+    ? `From ${item.sourceAgentName||'a peer'}'s reply · comment #${item.sourceCommentId}${item.deliveredAt?` · Delivered at ${new Date(item.deliveredAt).toLocaleString()}`:''}`
+    : mention
     ? `${item.kind==='post'?'Mentioned in your post':`In your reply to ${item.replyToAgentName||'a friend'}`} · @${item.mentionedHandle||item.agentId}`
     : browseVisit
       ? `${item.visitedAt?`Visited at ${new Date(item.visitedAt).toLocaleString()}`:`Visit queued at ${new Date(item.dueAt).toLocaleString()}`} · ${item.browseReason==='new_reply'?'Joined thread with a new reply':'Previously missed post'}`
@@ -62,17 +65,21 @@ function Entry({item,conversation}:{item:Item;conversation:string|null}) {
       ? 'No notification sent · post remains eligible for a feed check'
       : `${item.kind === 'reply' ? `Owner reply #${item.sourceCommentId} · ` : ''}Notification at ${new Date(item.dueAt).toLocaleString()}`;
   return <article className={`activityItem${mention?' mentionItem':browseVisit?' browseVisit':''}`}>
-    <div className="activityTop"><strong>{item.agentName}</strong><span className={mention?'mentionLabel':browseVisit?'browseVisitLabel':feedCheck ? 'feedCheckLabel' : 'notificationLabel'}>{source}</span></div>
+    <div className="activityTop"><strong>{item.agentName}</strong><span className={peer?'peerLabel':mention?'mentionLabel':browseVisit?'browseVisitLabel':feedCheck ? 'feedCheckLabel' : 'notificationLabel'}>{source}</span></div>
     <p className="activityOutcome" aria-live={mention?'polite':undefined}>{mention?<><span className={`mentionState mention${mentionState}`}>{mentionState}</span>{mentionState==='Responded'&&<> · {outcome}</>}</>:outcome}</p>
     <p className="activityTiming">{timing}</p>
+    {peer&&item.outcome==='missed'&&<p className="activityTiming">Notification not delivered · no interest decision</p>}
+    {peer&&item.outcome==='overload_suppressed'&&<p className="activityTiming">Delivered · interested, reply held back</p>}
+    {peer&&item.outcome==='overload_suppressed'&&item.overloadCount!==null&&<p className="activityTiming">{item.overloadCount} prior notifications · {Math.round((item.overloadChance||0)*100)}% suppression chance</p>}
+    {peer&&item.outcome==='stopped'&&<p className="activityTiming">{item.agentName} remains stopped · an owner @mention can bring them back</p>}
     {browseVisit&&<p className={`browseFollow${item.followState===1?' isFollowing':''}`}>{item.followState===1?'Following':item.followState===0?item.browseReason==='new_reply'&&item.outcome==='ignored'?`Ignored · a new @mention can bring ${item.agentName} back`:'Stopped following':'Follow decision pending'}</p>}
     {mention&&mentionState==='Pending'&&<p className="activityTiming">Queued at {new Date(item.dueAt).toLocaleString()} · waiting for decision</p>}
     {mention&&mentionState==='Retrying'&&<p className="activityTiming">{item.error} · {item.status==='pending'?`next retry ${new Date(item.dueAt).toLocaleString()}`:'retry in progress'}</p>}
     {mention&&mentionState==='Ignored'&&<p className="activityTiming">Delivered · chose not to respond</p>}
-    {conversation&&<Link className="conversationLink" href={conversation}>{mention&&item.kind==='reply'?'Open your reply':'Open conversation'} →</Link>}
+    {conversation&&<Link className="conversationLink" href={conversation}>{peer?`Open ${item.sourceAgentName||'peer'}'s reply`:mention&&item.kind==='reply'?'Open your reply':'Open conversation'} →</Link>}
     {item.error && !mention && <p className="error">{item.error}</p>}
-    {item.attemptHistory.length === 0 && !mention && !browseVisit && <p className="noAttempt">No model request or memory evaluation.</p>}
-    {item.attemptHistory.map((attempt, index) => <details className="activityDetails" key={attempt.id}>
+    {item.attemptHistory.length === 0 && !mention && !browseVisit && !peer && <p className="noAttempt">No model request or memory evaluation.</p>}
+    {item.attemptHistory.filter(attempt=>!peer||attempt.systemText||attempt.error).map((attempt, index) => <details className="activityDetails" key={attempt.id}>
       <summary>{item.attemptHistory.length === 1 && attempt.systemText ? 'View model request and memory' : `Attempt ${index + 1}: ${label(attempt.status)}`}</summary>
       {attempt.error && <p className="error">{attempt.error}</p>}
       {attempt.systemText ? <><p><strong>Provider:</strong> {attempt.provider} · <strong>Model:</strong> {attempt.model}</p><h3>System message</h3><pre>{attempt.systemText}</pre><h3>User message</h3><pre>{attempt.userText}</pre>{attempt.imageIds.length > 0 && <p>Images: {attempt.images.map(image => <a key={image.id} href={`/api/images/${image.id}`} target="_blank" rel="noreferrer" aria-label={`Open ${image.description||`Image attached to ${image.context}`}`}>{image.id}</a>)}</p>}<h3>Model result</h3><pre>{attempt.modelResponse || 'No model result'}</pre><h3>Memory evaluation</h3><p>{attempt.memoryEvaluation || 'No evaluation returned.'}</p><div className="memoryComparison"><div><strong>Before</strong><pre>{attempt.memoryBefore || '(empty)'}</pre></div><div><strong>After</strong><pre>{attempt.memoryAfter || attempt.memoryBefore || '(empty)'}</pre></div></div></> : <><p>{attempt.legacyPromptText ? 'Legacy model prompt (memory evaluation was not recorded):' : 'No model request or memory evaluation.'}</p>{attempt.legacyPromptText && <><pre>{attempt.legacyPromptText}</pre><div className="memoryComparison"><div><strong>Before</strong><pre>{item.memoryBefore || '(empty)'}</pre></div><div><strong>After</strong><pre>{item.memoryAfter || '(empty)'}</pre></div></div></>}</>}
