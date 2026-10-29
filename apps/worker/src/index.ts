@@ -1,11 +1,11 @@
 import { syncAgents,recoverJobs,scheduleFeedChecks,claimJob,getContext,completeJob,failJob,recordPayload,markDelivered,isStoppedPeer } from '@social/db';
 import { buildMessages,decide,buildBackground,backgroundUnavailable } from '@social/llm';
-import { shouldMiss } from '@social/core';
+import { shouldMissJob } from '@social/core';
 syncAgents();recoverJobs();console.log('Agent worker ready');
 async function tick(){scheduleFeedChecks();const job=claimJob();if(!job)return;try{
   const provider=process.env.LLM_PROVIDER||'mock';
   if(isStoppedPeer(job)){markDelivered(job);completeJob(job,null,'stopped');console.log(JSON.stringify({event:job.source,jobId:job.id,agentId:job.agentId,outcome:'stopped'}));return;}
-  const missed=(job.source==='notification'||job.source==='peer')&&shouldMiss(provider,Boolean(job.mockMiss));
+  const missed=shouldMissJob(job,provider,Boolean(job.mockMiss));
   if(missed){completeJob(job,null,'missed');console.log(JSON.stringify({event:job.source,jobId:job.id,agentId:job.agentId,outcome:'missed'}));return;}
   markDelivered(job);
   const context=getContext(job);

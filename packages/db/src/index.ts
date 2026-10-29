@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync, readdirSync, existsSync, writeFileSync, unlinkSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
-import { delayMs, pickAgents, stripLinks, type AgentProfile, type Decision } from '@social/core';
+import { delayMs, isReliableDelivery, pickAgents, stripLinks, type AgentProfile, type Decision } from '@social/core';
 const repoRoot = resolve(process.cwd(), '../..');
 const path = resolve(repoRoot, process.env.DATABASE_PATH || 'data/social.sqlite');
 const uploadsDir = join(dirname(path), 'uploads');
@@ -156,7 +156,7 @@ export function createOwnerReply(parentId: number, text: string, imageIds: strin
   const mentions=mentionedAgents(text,getAgents());
   const targets=new Set([parent.agentId,...mentions.keys()]);
   for(const agentId of targets){const memory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(agentId) as any)?.content||'';const mention=mentions.get(agentId);
-    getDb().prepare('INSERT INTO jobs(kind,post_id,source_comment_id,agent_id,due_at,mock_miss,memory_before,memory_after,source,mentioned_handle) VALUES(?,?,?,?,?,?,?,?,?,?)').run('reply',parent.postId,id,agentId,mention?Date.now():Date.now()+delayMs('reply'),mention?0:id%2===0?1:0,memory,memory,mention?'mention':'notification',mention?.handle??null);
+    getDb().prepare('INSERT INTO jobs(kind,post_id,source_comment_id,agent_id,due_at,mock_miss,memory_before,memory_after,source,mentioned_handle) VALUES(?,?,?,?,?,?,?,?,?,?)').run('reply',parent.postId,id,agentId,mention?Date.now():Date.now()+delayMs('reply'),0,memory,memory,mention?'mention':'notification',mention?.handle??null);
   }
   for(const agentId of mentions.keys()) reactivateThread(agentId,parent.postId);
   return { id, postId: parent.postId, parentId, text };
@@ -229,7 +229,7 @@ function finishBrowseIfDone(browseId:number) {
   const remaining=getDb().prepare("SELECT 1 FROM jobs WHERE browse_id=? AND status IN ('pending','running') LIMIT 1").get(browseId);
   if(!remaining) getDb().prepare('UPDATE browse_runs SET completed_at=COALESCE(completed_at,?) WHERE id=?').run(Date.now(),browseId);
 }
-export function failJob(job: Job, error: unknown) { const attempts = job.attempts + 1; const failed = job.source !== 'mention' && attempts >= 3; transaction(() => { getDb().prepare('UPDATE jobs SET status=?,outcome=?,completed_at=?,attempts=?,due_at=?,error=? WHERE id=?').run(failed ? 'failed' : 'pending',failed ? 'failed' : null,failed ? Date.now() : null,attempts,Date.now()+Math.min(job.source==='mention'?300000:60000,1000*2**Math.min(attempts,20)),String(error).slice(0,500),job.id); getDb().prepare(`UPDATE job_attempts SET status='failed',finished_at=?,error=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(Date.now(),String(error).slice(0,500),job.id); if(failed&&job.browseId) finishBrowseIfDone(job.browseId); }); }
+export function failJob(job: Job, error: unknown) { const attempts = job.attempts + 1; const reliable=isReliableDelivery(job);const failed = !reliable && attempts >= 3; transaction(() => { getDb().prepare('UPDATE jobs SET status=?,outcome=?,completed_at=?,attempts=?,due_at=?,error=? WHERE id=?').run(failed ? 'failed' : 'pending',failed ? 'failed' : null,failed ? Date.now() : null,attempts,Date.now()+Math.min(reliable?300000:60000,1000*2**Math.min(attempts,20)),String(error).slice(0,500),job.id); getDb().prepare(`UPDATE job_attempts SET status='failed',finished_at=?,error=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(Date.now(),String(error).slice(0,500),job.id); if(failed&&job.browseId) finishBrowseIfDone(job.browseId); }); }
 
 export type StoredImage = { id: string; mimeType: string; byteSize: number; path: string; description: string|null };
 function imageRow(row:any): StoredImage { return { id:row.id, mimeType:row.mime_type, byteSize:row.byte_size, path:join(uploadsDir,row.file_name), description:row.description??null }; }
