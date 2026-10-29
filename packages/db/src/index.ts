@@ -32,11 +32,13 @@ function getDb(): DatabaseSync {
   if(!columns.has('discovered_at')) db.exec('ALTER TABLE jobs ADD COLUMN discovered_at INTEGER');
   if(!columns.has('mentioned_handle')) db.exec('ALTER TABLE jobs ADD COLUMN mentioned_handle TEXT');
   for(const [name,type] of [['browse_id','INTEGER'],['browse_reason','TEXT'],['browse_seen_comment_id','INTEGER'],['follow_state','INTEGER'],['visited_at','INTEGER']] as const) if(!columns.has(name)) db.exec(`ALTER TABLE jobs ADD COLUMN ${name} ${type}`);
+  for(const [name,type] of [['delivered_at','INTEGER'],['overload_count','INTEGER'],['overload_chance','REAL']] as const) if(!columns.has(name)) db.exec(`ALTER TABLE jobs ADD COLUMN ${name} ${type}`);
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS one_feed_job_per_post_agent ON jobs(post_id,agent_id) WHERE kind='post' AND source='feed';
   CREATE TABLE IF NOT EXISTS agent_feed_checks (agent_id TEXT PRIMARY KEY REFERENCES agents(id), interval_ms INTEGER NOT NULL, next_check_at INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS browse_runs (id INTEGER PRIMARY KEY AUTOINCREMENT,agent_id TEXT NOT NULL REFERENCES agents(id),scheduled_at INTEGER NOT NULL,started_at INTEGER NOT NULL,completed_at INTEGER,visit_count INTEGER NOT NULL DEFAULT 0,UNIQUE(agent_id,scheduled_at));
   CREATE TABLE IF NOT EXISTS agent_thread_state (agent_id TEXT NOT NULL REFERENCES agents(id),post_id INTEGER NOT NULL REFERENCES posts(id),last_seen_comment_id INTEGER NOT NULL DEFAULT 0,last_seen_at INTEGER NOT NULL,following INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(agent_id,post_id));
-  CREATE UNIQUE INDEX IF NOT EXISTS one_browse_visit_per_run_post ON jobs(browse_id,post_id,agent_id) WHERE source='browse';`);
+  CREATE UNIQUE INDEX IF NOT EXISTS one_browse_visit_per_run_post ON jobs(browse_id,post_id,agent_id) WHERE source='browse';
+  CREATE UNIQUE INDEX IF NOT EXISTS one_peer_notification_per_comment_agent ON jobs(source_comment_id,agent_id) WHERE source='peer';`);
   db.prepare(`INSERT OR IGNORE INTO agent_thread_state(agent_id,post_id,last_seen_comment_id,last_seen_at,following)
     SELECT c.agent_id,c.post_id,(SELECT COALESCE(MAX(id),0) FROM comments WHERE post_id=c.post_id),?,1
     FROM comments c WHERE c.author_type='agent' AND c.agent_id IS NOT NULL GROUP BY c.agent_id,c.post_id`).run(Date.now());
@@ -155,7 +157,7 @@ export function createOwnerReply(parentId: number, text: string, imageIds: strin
   for(const agentId of mentions.keys()) reactivateThread(agentId,parent.postId);
   return { id, postId: parent.postId, parentId, text };
 }); }
-export type Job = { id: number; kind: 'post'|'reply'; source: 'notification'|'feed'|'mention'|'browse'; postId: number; sourceCommentId: number|null; agentId: string; attempts: number; mockMiss: boolean; mentionedHandle:string|null; browseId:number|null; browseReason:string|null; seenCommentId:number };
+export type Job = { id: number; kind: 'post'|'reply'; source: 'notification'|'feed'|'mention'|'browse'|'peer'; postId: number; sourceCommentId: number|null; agentId: string; attempts: number; mockMiss: boolean; mentionedHandle:string|null; browseId:number|null; browseReason:string|null; seenCommentId:number };
 export function claimJob(): Job | null { return transaction(() => {
   const job = getDb().prepare(`SELECT j.id,j.kind,j.source,j.post_id AS postId,j.source_comment_id AS sourceCommentId,j.agent_id AS agentId,j.attempts,j.mock_miss AS mockMiss,j.mentioned_handle AS mentionedHandle,j.browse_id AS browseId,j.browse_reason AS browseReason,(SELECT COALESCE(MAX(c.id),0) FROM comments c WHERE c.post_id=j.post_id) AS seenCommentId FROM jobs j WHERE j.status='pending' AND j.due_at<=? ORDER BY j.due_at,j.id LIMIT 1`).get(Date.now()) as Job | undefined;
   if (!job) return null;
@@ -168,25 +170,35 @@ export function getContext(job: Job) {
   const memory = getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any;
   const post = getDb().prepare('SELECT text FROM posts WHERE id=?').get(job.postId) as any;
   const commentRows = getDb().prepare('SELECT author_type AS authorType,agent_id AS agentId,text,id,parent_id AS parentId FROM comments WHERE post_id=? ORDER BY id').all(job.postId) as {id:number}[];
-  const commentImages=job.source==='browse'?commentRows.flatMap(comment=>getImagesForComment(comment.id).map(image=>({commentId:comment.id,image}))):[];
-  const comments=job.source==='browse'?commentRows.map(comment=>({...comment,images:commentImages.filter(entry=>entry.commentId===comment.id).map(({image})=>({id:image.id,description:image.description}))})):commentRows;
-  const reply=job.sourceCommentId ? getDb().prepare(`SELECT c.text,p.agent_id AS parentAgentId,a.name AS parentAgentName FROM comments c LEFT JOIN comments p ON p.id=c.parent_id LEFT JOIN agents a ON a.id=p.agent_id WHERE c.id=?`).get(job.sourceCommentId) as {text:string;parentAgentId:string|null;parentAgentName:string|null}|undefined : undefined;
-  return { agent, memory: memory?.content || '', post: post?.text || '', comments, sourceCommentId: job.sourceCommentId, mentionedHandle:job.mentionedHandle, mentionText:job.kind==='post'?post?.text||'':reply?.text||'',replyToAgentName:reply?.parentAgentName||null,replyToOwnComment:reply?.parentAgentId===job.agentId,browseReason:job.browseReason, images: [...getImagesForPost(job.postId), ...(job.source==='browse'?commentImages.map(entry=>entry.image):job.sourceCommentId ? getImagesForComment(job.sourceCommentId) : [])] };
+  const fullThread=job.source==='browse'||job.source==='peer';
+  const commentImages=fullThread?commentRows.flatMap(comment=>getImagesForComment(comment.id).map(image=>({commentId:comment.id,image}))):[];
+  const comments=fullThread?commentRows.map(comment=>({...comment,images:commentImages.filter(entry=>entry.commentId===comment.id).map(({image})=>({id:image.id,description:image.description}))})):commentRows;
+  const reply=job.sourceCommentId ? getDb().prepare(`SELECT c.text,c.agent_id AS sourceAgentId,source.name AS sourceAgentName,p.agent_id AS parentAgentId,a.name AS parentAgentName FROM comments c LEFT JOIN agents source ON source.id=c.agent_id LEFT JOIN comments p ON p.id=c.parent_id LEFT JOIN agents a ON a.id=p.agent_id WHERE c.id=?`).get(job.sourceCommentId) as {text:string;sourceAgentId:string|null;sourceAgentName:string|null;parentAgentId:string|null;parentAgentName:string|null}|undefined : undefined;
+  return { agent, memory: memory?.content || '', post: post?.text || '', comments, sourceCommentId: job.sourceCommentId, sourceAgentName:reply?.sourceAgentName||null,mentionedHandle:job.mentionedHandle, mentionText:job.kind==='post'?post?.text||'':reply?.text||'',replyToAgentName:reply?.parentAgentName||null,replyToOwnComment:reply?.parentAgentId===job.agentId,browseReason:job.browseReason, images: [...getImagesForPost(job.postId), ...(fullThread?commentImages.map(entry=>entry.image):job.sourceCommentId ? getImagesForComment(job.sourceCommentId) : [])] };
 }
-export function completeJob(job: Job, decision: Decision | null, forcedOutcome?: 'missed') { return transaction(() => {
+export function markDelivered(job:Job,now=Date.now()) { getDb().prepare('UPDATE jobs SET delivered_at=COALESCE(delivered_at,?) WHERE id=?').run(now,job.id); }
+export function isStoppedPeer(job:Job) { return job.source==='peer' && (getDb().prepare('SELECT following FROM agent_thread_state WHERE agent_id=? AND post_id=?').get(job.agentId,job.postId) as {following:number}|undefined)?.following===0; }
+export function completeJob(job: Job, decision: Decision | null, forcedOutcome?: 'missed'|'stopped', random=Math.random) { return transaction(() => {
   const current = getDb().prepare('SELECT status FROM jobs WHERE id=?').get(job.id) as any;
   if (current?.status !== 'running') return null;
   const oldMemory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any)?.content||'';
+  const modelDecision=decision;
+  let overloadCount:number|null=null,overloadChance:number|null=null,overloadSuppressed=false;
+  if(job.source==='peer' && decision?.comment?.trim() && !forcedOutcome){
+    overloadCount=(getDb().prepare(`SELECT COUNT(*) AS count FROM jobs WHERE agent_id=? AND id<>? AND source IN ('notification','peer') AND delivered_at>? AND delivered_at<=? AND outcome IS NOT 'missed' AND status<>'not_selected'`).get(job.agentId,job.id,Date.now()-3600000,Date.now()) as {count:number}).count;
+    overloadChance=Math.min(.75,.1*Math.max(0,overloadCount-2));
+    if(random()<overloadChance) {overloadSuppressed=true;decision={...decision,comment:null,memory:null};}
+  }
   let liked=false,commentId=0;
-  if (decision) {
+  if (decision && !forcedOutcome) {
     if (job.kind === 'post' && decision.like) liked=getDb().prepare('INSERT OR IGNORE INTO likes(post_id,agent_id) VALUES(?,?)').run(job.postId,job.agentId).changes>0;
     if (decision.comment?.trim()) commentId=Number(getDb().prepare(`INSERT INTO comments(post_id,parent_id,author_type,agent_id,text) VALUES(?,?,'agent',?,?)`).run(job.postId,job.kind === 'reply'||job.source==='browse' ? job.sourceCommentId : null,job.agentId,decision.comment.trim().slice(0,280)).lastInsertRowid);
     if (decision.memory?.trim()) { const old = (getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any)?.content || ''; getDb().prepare('UPDATE memories SET content=? WHERE agent_id=?').run((old+'\n'+decision.memory.trim()).trim().slice(-2000),job.agentId); }
   }
   const commented = commentId>0;
-  const outcome = forcedOutcome || (liked && commented ? 'liked_and_commented' : liked ? 'liked' : commented ? 'commented' : 'ignored');
+  const outcome = forcedOutcome || (overloadSuppressed ? 'overload_suppressed' : liked && commented ? 'liked_and_commented' : liked ? 'liked' : commented ? 'commented' : 'ignored');
   const afterMemory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(job.agentId) as any)?.content||'';
-  getDb().prepare(`UPDATE jobs SET status='done',outcome=?,completed_at=?,memory_before=?,memory_after=?,error=NULL WHERE id=?`).run(outcome,Date.now(),oldMemory,afterMemory,job.id);
+  getDb().prepare(`UPDATE jobs SET status='done',outcome=?,completed_at=?,memory_before=?,memory_after=?,overload_count=?,overload_chance=?,error=NULL WHERE id=?`).run(outcome,Date.now(),oldMemory,afterMemory,overloadCount,overloadChance,job.id);
   if(decision&&!forcedOutcome){
     const prior=getDb().prepare('SELECT following FROM agent_thread_state WHERE agent_id=? AND post_id=?').get(job.agentId,job.postId) as {following:number}|undefined;
     const following=decision.follow===true?1:decision.follow===false?0:commented?1:prior?.following??0;
@@ -194,10 +206,17 @@ export function completeJob(job: Job, decision: Decision | null, forcedOutcome?:
       ON CONFLICT(agent_id,post_id) DO UPDATE SET last_seen_comment_id=MAX(last_seen_comment_id,excluded.last_seen_comment_id),last_seen_at=excluded.last_seen_at,following=excluded.following`).run(job.agentId,job.postId,Math.max(job.seenCommentId,commentId),Date.now(),following);
     if(job.source==='browse') getDb().prepare('UPDATE jobs SET follow_state=? WHERE id=?').run(following,job.id);
   }
-  getDb().prepare(`UPDATE job_attempts SET status=?,finished_at=?,model_response=?,memory_before=?,memory_after=?,memory_evaluation=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(outcome,Date.now(),decision?JSON.stringify(decision):null,oldMemory,afterMemory,decision?.memoryEvaluation||null,job.id);
+  getDb().prepare(`UPDATE job_attempts SET status=?,finished_at=?,model_response=?,memory_before=?,memory_after=?,memory_evaluation=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(outcome,Date.now(),modelDecision?JSON.stringify(modelDecision):null,oldMemory,afterMemory,modelDecision?.memoryEvaluation||null,job.id);
+  if(commentId && job.source!=='peer') fanOutPeerComment(commentId,job.postId,job.agentId);
   if(job.browseId) finishBrowseIfDone(job.browseId);
   return outcome;
 }); }
+function fanOutPeerComment(commentId:number,postId:number,authorId:string) {
+  for(const agent of getAgents().filter(agent=>agent.id!==authorId)) {
+    const memory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(agent.id) as {content:string}|undefined)?.content||'';
+    getDb().prepare(`INSERT OR IGNORE INTO jobs(kind,post_id,source_comment_id,agent_id,due_at,mock_miss,memory_before,memory_after,source) VALUES('reply',?,?,?,?,?,?,?,'peer')`).run(postId,commentId,agent.id,Date.now()+delayMs('reply'),Math.random()<.25?1:0,memory,memory);
+  }
+}
 function finishBrowseIfDone(browseId:number) {
   const remaining=getDb().prepare("SELECT 1 FROM jobs WHERE browse_id=? AND status IN ('pending','running') LIMIT 1").get(browseId);
   if(!remaining) getDb().prepare('UPDATE browse_runs SET completed_at=COALESCE(completed_at,?) WHERE id=?').run(Date.now(),browseId);
@@ -214,7 +233,7 @@ function attachImages(ids:string[], postId:number, commentId:number|null) { for 
 export function storeImage(bytes:Buffer,mimeType:string,description:string|null=null): StoredImage { mkdirSync(uploadsDir,{recursive:true}); const id=randomUUID();const ext=mimeType==='image/png'?'png':mimeType==='image/webp'?'webp':'jpg';const fileName=`${id}.${ext}`;const filePath=join(uploadsDir,fileName);writeFileSync(filePath,bytes);try { getDb().prepare('INSERT INTO images(id,mime_type,byte_size,file_name,description) VALUES(?,?,?,?,?)').run(id,mimeType,bytes.length,fileName,description); } catch(error) { unlinkSync(filePath);throw error; }return {id,mimeType,byteSize:bytes.length,path:filePath,description}; }
 export function deleteUnattachedImages(ids:string[]) { for(const id of ids){const row=getDb().prepare('SELECT * FROM images WHERE id=? AND post_id IS NULL AND comment_id IS NULL').get(id) as any;if(row){getDb().prepare('DELETE FROM images WHERE id=?').run(id);try{unlinkSync(join(uploadsDir,row.file_name));}catch{}}} }
 export function recordPayload(job:Job,payload:{system:string;user:string;imageIds:string[];provider:string;model:string;memoryBefore:string}) { getDb().prepare(`UPDATE job_attempts SET system_text=?,user_text=?,image_ids=?,provider=?,model=?,memory_before=? WHERE id=(SELECT MAX(id) FROM job_attempts WHERE job_id=?)`).run(payload.system,payload.user,JSON.stringify(payload.imageIds),payload.provider,payload.model,payload.memoryBefore,job.id); }
-export function getActivity(limit=50,offset=0) { return getDb().prepare(`SELECT j.id,j.kind,j.source,j.discovered_at AS discoveredAt,j.visited_at AS visitedAt,j.browse_reason AS browseReason,j.follow_state AS followState,j.post_id AS postId,p.text AS postText,pi.id AS postImageId,pi.description AS postImageDescription,j.source_comment_id AS sourceCommentId,j.mentioned_handle AS mentionedHandle,(SELECT a2.name FROM comments c2 JOIN comments parent ON parent.id=c2.parent_id JOIN agents a2 ON a2.id=parent.agent_id WHERE c2.id=j.source_comment_id) AS replyToAgentName,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN posts p ON p.id=j.post_id LEFT JOIN images pi ON pi.id=(SELECT i.id FROM images i WHERE i.post_id=j.post_id AND i.comment_id IS NULL ORDER BY i.rowid LIMIT 1) LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) ORDER BY j.id DESC LIMIT ? OFFSET ?`).all(Math.min(100,Math.max(1,limit)),Math.max(0,offset)); }
+export function getActivity(limit=50,offset=0) { return getDb().prepare(`SELECT j.id,j.kind,j.source,j.discovered_at AS discoveredAt,j.visited_at AS visitedAt,j.browse_reason AS browseReason,j.follow_state AS followState,j.post_id AS postId,p.text AS postText,pi.id AS postImageId,pi.description AS postImageDescription,j.source_comment_id AS sourceCommentId,source_agent.name AS sourceAgentName,j.delivered_at AS deliveredAt,j.overload_count AS overloadCount,j.overload_chance AS overloadChance,j.mentioned_handle AS mentionedHandle,(SELECT a2.name FROM comments c2 JOIN comments parent ON parent.id=c2.parent_id JOIN agents a2 ON a2.id=parent.agent_id WHERE c2.id=j.source_comment_id) AS replyToAgentName,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN comments source_comment ON source_comment.id=j.source_comment_id LEFT JOIN agents source_agent ON source_agent.id=source_comment.agent_id LEFT JOIN posts p ON p.id=j.post_id LEFT JOIN images pi ON pi.id=(SELECT i.id FROM images i WHERE i.post_id=j.post_id AND i.comment_id IS NULL ORDER BY i.rowid LIMIT 1) LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) ORDER BY j.id DESC LIMIT ? OFFSET ?`).all(Math.min(100,Math.max(1,limit)),Math.max(0,offset)); }
 export function getActivityPage(beforePostId: number | null = null, pageSize = 5) {
   if (beforePostId !== null && (!Number.isSafeInteger(beforePostId) || beforePostId <= 0)) throw new Error('Invalid activity cursor');
   const size = Math.min(20, Math.max(1, Math.trunc(pageSize)));
@@ -224,7 +243,7 @@ export function getActivityPage(beforePostId: number | null = null, pageSize = 5
   const selected = groups.slice(0,size).map(group=>group.postId);
   if (selected.length === 0) return {items:[],nextCursor:null};
   const placeholders = selected.map(()=>'?').join(',');
-  const items = getDb().prepare(`SELECT j.id,j.kind,j.source,j.discovered_at AS discoveredAt,j.visited_at AS visitedAt,j.browse_reason AS browseReason,j.follow_state AS followState,j.post_id AS postId,p.text AS postText,pi.id AS postImageId,pi.description AS postImageDescription,j.source_comment_id AS sourceCommentId,j.mentioned_handle AS mentionedHandle,(SELECT a2.name FROM comments c2 JOIN comments parent ON parent.id=c2.parent_id JOIN agents a2 ON a2.id=parent.agent_id WHERE c2.id=j.source_comment_id) AS replyToAgentName,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN posts p ON p.id=j.post_id LEFT JOIN images pi ON pi.id=(SELECT i.id FROM images i WHERE i.post_id=j.post_id AND i.comment_id IS NULL ORDER BY i.rowid LIMIT 1) LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) WHERE j.post_id IN (${placeholders}) ORDER BY j.post_id DESC,j.id DESC`).all(...selected);
+  const items = getDb().prepare(`SELECT j.id,j.kind,j.source,j.discovered_at AS discoveredAt,j.visited_at AS visitedAt,j.browse_reason AS browseReason,j.follow_state AS followState,j.post_id AS postId,p.text AS postText,pi.id AS postImageId,pi.description AS postImageDescription,j.source_comment_id AS sourceCommentId,source_agent.name AS sourceAgentName,j.delivered_at AS deliveredAt,j.overload_count AS overloadCount,j.overload_chance AS overloadChance,j.mentioned_handle AS mentionedHandle,(SELECT a2.name FROM comments c2 JOIN comments parent ON parent.id=c2.parent_id JOIN agents a2 ON a2.id=parent.agent_id WHERE c2.id=j.source_comment_id) AS replyToAgentName,j.agent_id AS agentId,a.name AS agentName,j.due_at AS dueAt,j.status,j.outcome,j.error,j.completed_at AS completedAt,j.attempts,j.mock_miss AS mockMiss,j.memory_before AS memoryBefore,j.memory_after AS memoryAfter,t.image_ids AS imageIds FROM jobs j JOIN agents a ON a.id=j.agent_id LEFT JOIN comments source_comment ON source_comment.id=j.source_comment_id LEFT JOIN agents source_agent ON source_agent.id=source_comment.agent_id LEFT JOIN posts p ON p.id=j.post_id LEFT JOIN images pi ON pi.id=(SELECT i.id FROM images i WHERE i.post_id=j.post_id AND i.comment_id IS NULL ORDER BY i.rowid LIMIT 1) LEFT JOIN job_attempts t ON t.id=(SELECT MAX(id) FROM job_attempts WHERE job_id=j.id) WHERE j.post_id IN (${placeholders}) ORDER BY j.post_id DESC,j.id DESC`).all(...selected);
   return {items,nextCursor:groups.length>size?selected[selected.length-1]:null};
 }
 export function getActivityAttempts(jobId:number) { return getDb().prepare('SELECT id,started_at AS startedAt,finished_at AS finishedAt,status,error,system_text AS systemText,user_text AS userText,prompt_text AS legacyPromptText,provider,model,model_response AS modelResponse,memory_before AS memoryBefore,memory_after AS memoryAfter,memory_evaluation AS memoryEvaluation,image_ids AS imageIds FROM job_attempts WHERE job_id=? ORDER BY id').all(jobId); }

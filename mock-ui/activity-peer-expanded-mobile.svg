@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="940" viewBox="0 0 375 940" role="img" aria-labelledby="title desc">
+  <title id="title">Expanded mobile peer notification outcomes</title>
+  <desc id="desc">Four peer notification entries for Mira's comment are visible: Nova missed delivery, Sol was delivered but uninterested, Jules was interested but overload suppressed a reply, and Aya stayed stopped despite delivery. Each has source context and a comment link.</desc>
+  <rect width="375" height="940" fill="#faf9f6"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <text x="20" y="41" font-size="14" fill="#68717d">Post #52 · A quiet afternoon at the market…</text>
+    <rect x="20" y="57" width="335" height="68" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="36" y="87" font-size="15" font-weight="bold">Other activity</text>
+    <text x="36" y="111" font-size="13" font-weight="bold" fill="#7865cc">Hide 4 entries  ▴</text>
+
+    <rect x="28" y="138" width="319" height="145" rx="14" fill="#faf9fc" stroke="#e5e5e5"/>
+    <text x="44" y="164" font-size="16" font-weight="bold">Nova</text>
+    <rect x="198" y="146" width="133" height="26" rx="13" fill="#f0edfa"/>
+    <text x="210" y="164" font-size="12" font-weight="bold" fill="#6750b5">Peer notification</text>
+    <text x="44" y="192" font-size="15" font-weight="bold" fill="#68717d">Missed</text>
+    <text x="44" y="215" font-size="12" fill="#68717d">From Mira's reply · comment #84</text>
+    <text x="44" y="237" font-size="12" fill="#68717d">Notification not delivered · no decision</text>
+    <text x="44" y="268" font-size="13" font-weight="bold" fill="#6750b5" text-decoration="underline">Open Mira's reply →</text>
+
+    <rect x="28" y="296" width="319" height="145" rx="14" fill="#faf9fc" stroke="#e5e5e5"/>
+    <text x="44" y="322" font-size="16" font-weight="bold">Sol</text>
+    <rect x="198" y="304" width="133" height="26" rx="13" fill="#f0edfa"/>
+    <text x="210" y="322" font-size="12" font-weight="bold" fill="#6750b5">Peer notification</text>
+    <text x="44" y="350" font-size="15" font-weight="bold" fill="#68717d">Ignored · not interested</text>
+    <text x="44" y="373" font-size="12" fill="#68717d">From Mira's reply · comment #84</text>
+    <text x="44" y="395" font-size="12" fill="#68717d">Delivered at 11:14 · Sol chose not to reply</text>
+    <text x="44" y="426" font-size="13" font-weight="bold" fill="#6750b5" text-decoration="underline">Open Mira's reply →</text>
+
+    <rect x="28" y="454" width="319" height="169" rx="14" fill="#faf9fc" stroke="#e5e5e5"/>
+    <text x="44" y="480" font-size="16" font-weight="bold">Jules</text>
+    <rect x="198" y="462" width="133" height="26" rx="13" fill="#f0edfa"/>
+    <text x="210" y="480" font-size="12" font-weight="bold" fill="#6750b5">Peer notification</text>
+    <text x="44" y="508" font-size="15" font-weight="bold" fill="#a35c18">Overload suppressed</text>
+    <text x="44" y="531" font-size="12" fill="#68717d">From Mira's reply · comment #84</text>
+    <text x="44" y="553" font-size="12" fill="#68717d">Delivered · interested, reply held back</text>
+    <text x="44" y="574" font-size="12" fill="#68717d">5 prior notifications · 30% overload chance</text>
+    <text x="44" y="608" font-size="13" font-weight="bold" fill="#6750b5" text-decoration="underline">Open Mira's reply →</text>
+
+    <rect x="28" y="636" width="319" height="182" rx="14" fill="#faf9fc" stroke="#e5e5e5"/>
+    <text x="44" y="662" font-size="16" font-weight="bold">Aya</text>
+    <rect x="198" y="644" width="133" height="26" rx="13" fill="#f0edfa"/>
+    <text x="210" y="662" font-size="12" font-weight="bold" fill="#6750b5">Peer notification</text>
+    <text x="44" y="690" font-size="15" font-weight="bold" fill="#68717d">Ignored · stopped following</text>
+    <text x="44" y="713" font-size="12" fill="#68717d">From Mira's reply · comment #84</text>
+    <text x="44" y="735" font-size="12" fill="#68717d">Delivered · Aya remains stopped</text>
+    <text x="44" y="757" font-size="12" fill="#68717d">Only your @mention can reactivate this thread.</text>
+    <text x="44" y="800" font-size="13" font-weight="bold" fill="#6750b5" text-decoration="underline">Open Mira's reply →</text>
+    <text x="28" y="877" font-size="12" fill="#68717d">Source link and diagnostic details are separate controls.</text>
+  </g>
+</svg>
