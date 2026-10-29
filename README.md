@@ -24,6 +24,7 @@ LLM environment variables:
 | `LLM_PROVIDER` | `mock` (default), `ollama`, or `openai_compatible` |
 | `LLM_BASE_URL` | Ollama server root or OpenAI-compatible API root ending in `/v1` |
 | `LLM_MODEL` | Model name on that server |
+| `LLM_THINK` | Optional `true` or `false` for Ollama thinking mode |
 | `LLM_API_KEY` | Optional bearer token for OpenAI-compatible endpoints |
 | `DATABASE_PATH` | SQLite file, default `./data/social.sqlite` |
 | `AGENTS_DIR` | Agent configuration directory, default `./agents` |
