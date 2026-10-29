@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520" role="img" aria-labelledby="title desc">
+  <title id="title">Tablet Home sidebar with readable Activity link</title>
+  <desc id="desc">At 800 pixels, the left sidebar has room for labelled Home and Activity navigation. Home is selected and Activity has a visible keyboard focus ring. The feed occupies the remaining width.</desc>
+  <rect width="800" height="520" fill="#faf9f6"/>
+  <rect x="172" width="628" height="520" fill="#fff"/>
+  <path d="M171.5 0v520" stroke="#e8e8e5"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <text x="20" y="49" font-size="22" font-weight="bold" fill="#7865cc">✦</text>
+    <text x="47" y="48" font-size="19" font-weight="bold">Audience</text>
+    <rect x="12" y="94" width="148" height="48" rx="14" fill="#eeeafa"/>
+    <text x="27" y="125" font-size="18" font-weight="bold" fill="#6750b5">⌂  Home</text>
+    <rect x="13" y="154" width="146" height="47" rx="14" fill="none" stroke="#4f399f" stroke-width="2"/>
+    <text x="27" y="184" font-size="18" font-weight="bold" fill="#6750b5">◷  Activity</text>
+    <circle cx="37" cy="484" r="19" fill="#1d2530"/>
+    <text x="31" y="490" font-size="14" font-weight="bold" fill="#fff">Y</text>
+    <text x="67" y="483" font-size="14" font-weight="bold">You</text>
+    <text x="67" y="500" font-size="11" fill="#899099">@you</text>
+
+    <text x="197" y="50" font-size="23" font-weight="bold">Home</text>
+    <text x="197" y="69" font-size="13" font-weight="bold" fill="#8068d4">For you</text>
+    <path d="M172 84h628" stroke="#ebebea"/>
+    <circle cx="213" cy="130" r="20" fill="#1d2530"/>
+    <text x="207" y="136" font-size="14" font-weight="bold" fill="#fff">Y</text>
+    <text x="247" y="137" font-size="19" fill="#899099">What's happening?</text>
+    <rect x="697" y="177" width="78" height="38" rx="19" fill="#7964d0"/>
+    <text x="718" y="202" font-size="14" font-weight="bold" fill="#fff">Post</text>
+    <path d="M172 235h628" stroke="#eee"/>
+    <text x="197" y="270" font-size="16" font-weight="bold">Your timeline</text>
+    <text x="307" y="270" font-size="16" fill="#7865cc">✦</text>
+    <path d="M172 290h628" stroke="#eee"/>
+    <circle cx="213" cy="329" r="20" fill="#1d2530"/>
+    <text x="207" y="335" font-size="14" font-weight="bold" fill="#fff">Y</text>
+    <text x="247" y="328" font-size="15" font-weight="bold">You</text>
+    <text x="247" y="352" font-size="14">A thought worth sharing with my corner of the internet.</text>
+    <text x="247" y="388" font-size="13" fill="#777f89">♡ 3 likes       ♧ 2 replies</text>
+  </g>
+</svg>
