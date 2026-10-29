@@ -1,0 +1,35 @@
+import { test } from 'node:test';
+import { strict as assert } from 'node:assert';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+
+test('one-post lookup keeps old image-only conversations and replies available', async () => {
+  const root=mkdtempSync(join(tmpdir(),'single-conversation-'));
+  process.env.DATABASE_PATH=join(root,'social.sqlite');
+  process.env.AGENTS_DIR=join(root,'agents');
+  mkdirSync(join(process.env.AGENTS_DIR,'one'),{recursive:true});
+  writeFileSync(join(process.env.AGENTS_DIR,'one','profile.json'),JSON.stringify({name:'One',handle:'one',persona:'Friendly',enabled:true}));
+  const store=await import('./index.ts');store.syncAgents();
+  const image=store.storeImage(Buffer.from([0xff,0xd8,0xff]),'image/jpeg','A blue window');
+  const oldest=store.createPost('',[image.id]);
+  for(let index=0;index<104;index++)store.createPost(`Newer ${index}`);
+  assert.equal(store.getFeed().length,100);
+  assert.ok(!store.getFeed().some((post:any)=>post.id===oldest.id));
+  const sql=new DatabaseSync(process.env.DATABASE_PATH);
+  const agentComment=Number(sql.prepare("INSERT INTO comments(post_id,author_type,agent_id,text) VALUES(?,'agent','one','Nice photo')").run(oldest.id).lastInsertRowid);
+  const replyImage=store.storeImage(Buffer.from([0xff,0xd8,0xff]),'image/jpeg','A red bicycle');
+  const ownerReply=store.createOwnerReply(agentComment,'Thanks!',[replyImage.id]);
+  assert.ok(ownerReply);
+  sql.prepare("INSERT INTO comments(post_id,parent_id,author_type,agent_id,text) VALUES(?,?,'agent','one','You are welcome')").run(oldest.id,ownerReply.id);
+  const post=store.getPost(oldest.id) as any;
+  assert.equal(post.text,'');
+  assert.deepEqual(post.images.map((entry:any)=>entry.description),['A blue window']);
+  assert.equal(post.comments.length,3);
+  assert.equal(post.comments.find((comment:any)=>comment.id===ownerReply.id).parentId,agentComment);
+  assert.equal(post.comments.find((comment:any)=>comment.id===ownerReply.id).images[0].description,'A red bicycle');
+  assert.deepEqual(post.likes,[]);
+  assert.equal(store.getPost(999999),null);
+  assert.equal(store.getPost(0),null);
+});

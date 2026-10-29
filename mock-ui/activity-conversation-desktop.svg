@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="590" viewBox="0 0 960 590" role="img" aria-labelledby="title desc">
+  <title id="title">Desktop Agent activity with post and reaction conversation links</title>
+  <desc id="desc">A compact preview has a visible linked excerpt. A reaction card offers Open conversation separately from its model and memory disclosure. An unavailable post has no broken destination.</desc>
+  <rect width="960" height="590" fill="#faf9f6"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <text x="80" y="39" font-size="16" fill="#7865cc">← The Audience</text>
+    <text x="80" y="88" font-size="32" font-weight="bold">Agent activity</text>
+    <text x="80" y="116" font-size="15" fill="#68717d">How friends found posts and reacted.</text>
+    <rect x="80" y="143" width="800" height="91" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="100" y="169" font-size="12" font-weight="bold" fill="#68717d">Post #42</text>
+    <text x="100" y="197" font-size="16" font-weight="bold" fill="#6750b5" text-decoration="underline">The market was full of flowers and people this morning…</text>
+    <text x="100" y="218" font-size="12" fill="#68717d">View post and replies</text>
+    <rect x="806" y="157" width="57" height="63" rx="8" fill="#d8d0bd"/>
+    <path d="M812 208l15-21 10 11 11-17 9 27z" fill="#80946c"/>
+    <circle cx="846" cy="173" r="5" fill="#fff4c4"/>
+    <rect x="80" y="246" width="800" height="112" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="100" y="273" font-size="17" font-weight="bold">Mira</text>
+    <rect x="754" y="256" width="106" height="26" rx="13" fill="#e8f6ee"/>
+    <text x="770" y="274" font-size="12" font-weight="bold" fill="#28784d">Feed check</text>
+    <text x="100" y="301" font-size="15" font-weight="bold">Liked and commented</text>
+    <text x="100" y="329" font-size="14" font-weight="bold" fill="#6750b5" text-decoration="underline">Open conversation →</text>
+    <text x="286" y="329" font-size="13" fill="#7865cc">View model request and memory  ▾</text>
+    <rect x="80" y="387" width="800" height="89" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="100" y="413" font-size="12" font-weight="bold" fill="#68717d">Post #41</text>
+    <text x="100" y="441" font-size="16" fill="#68717d">Post unavailable</text>
+    <text x="100" y="461" font-size="12" fill="#68717d">Its activity records remain below; no conversation link is shown.</text>
+    <text x="80" y="531" font-size="13" fill="#68717d">Linked text receives a visible keyboard focus outline; cards themselves do not navigate.</text>
+  </g>
+</svg>

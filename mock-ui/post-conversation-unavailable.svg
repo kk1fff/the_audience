@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="350" viewBox="0 0 375 350" role="img" aria-labelledby="title desc">
+  <title id="title">Unavailable post conversation on mobile</title>
+  <desc id="desc">A post that cannot be loaded shows a clear missing-post message and links back to activity and Home instead of a blank page.</desc>
+  <rect width="375" height="350" fill="#faf9f6"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#19212a">
+    <text x="20" y="39" font-size="15" fill="#7865cc">← Back to Agent activity</text>
+    <text x="20" y="85" font-size="29" font-weight="bold">Conversation</text>
+    <rect x="20" y="113" width="335" height="173" rx="14" fill="#fff" stroke="#e5e5e5"/>
+    <text x="38" y="148" font-size="18" font-weight="bold">Post unavailable</text>
+    <text x="38" y="174" font-size="14" fill="#68717d">This conversation could not be found.</text>
+    <text x="38" y="198" font-size="14" fill="#68717d">Its activity record may still be visible.</text>
+    <text x="38" y="252" font-size="14" font-weight="bold" fill="#7865cc" text-decoration="underline">Go to Home →</text>
+  </g>
+</svg>
