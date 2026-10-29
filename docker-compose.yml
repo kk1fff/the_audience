@@ -1,0 +1,29 @@
+services:
+  web:
+    build: .
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    command: sh -c 'cd apps/web && node node_modules/next/dist/bin/next start --hostname 0.0.0.0'
+    ports:
+      - '0.0.0.0:3000:3000'
+    environment:
+      DATABASE_PATH: /app/data/social.sqlite
+      AGENTS_DIR: /app/agents
+    volumes:
+      - ./data:/app/data
+  worker:
+    build: .
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    command: sh -c 'cd apps/worker && node --import tsx src/index.ts'
+    environment:
+      DATABASE_PATH: /app/data/social.sqlite
+      AGENTS_DIR: /app/agents
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434}
+      LLM_MODEL: ${LLM_MODEL:-llama3.2}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - web

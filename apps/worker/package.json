@@ -1,0 +1,1 @@
+{"name":"@social/worker","version":"0.1.0","type":"module","scripts":{"dev":"tsx watch src/index.ts","start":"tsx src/index.ts"},"dependencies":{"@social/core":"workspace:*","@social/db":"workspace:*","@social/llm":"workspace:*","tsx":"^4.20.0"}}
