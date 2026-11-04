@@ -48,18 +48,47 @@ function getDb(): DatabaseSync {
   return db;
 }
 function transaction<T>(fn: () => T): T { getDb().exec('BEGIN IMMEDIATE'); try { const result = fn(); getDb().exec('COMMIT'); return result; } catch (e) { getDb().exec('ROLLBACK'); throw e; } }
+type Profile = Omit<AgentProfile, 'id'>;
+function readProfile(file: string): Partial<Profile> {
+  try {
+    const value = JSON.parse(readFileSync(file, 'utf8'));
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Expected a JSON object');
+    return value;
+  } catch (error) { throw new Error(`Invalid agent profile file ${file}: ${String(error)}`); }
+}
+function validate(id: string, profile: Partial<Profile>): asserts profile is Profile {
+  if (!/^[a-z0-9_-]+$/.test(id) || ['name','handle','persona'].some(key => typeof profile[key as keyof Profile] !== 'string' || !(profile[key as keyof Profile] as string).trim())) throw new Error(`Invalid agent profile: ${id}`);
+  for (const key of ['avatarColor','city','timeZone'] as const) if (profile[key] !== undefined && typeof profile[key] !== 'string') throw new Error(`Invalid agent ${key}: ${id}`);
+  if (profile.enabled !== undefined && typeof profile.enabled !== 'boolean') throw new Error(`Invalid agent enabled: ${id}`);
+  if (profile.timeZone) { try { new Intl.DateTimeFormat('en', {timeZone: profile.timeZone}); } catch { throw new Error(`Invalid agent time zone: ${id}`); } }
+  if ((profile.latitude === undefined) !== (profile.longitude === undefined) || profile.latitude !== undefined && (!Number.isFinite(profile.latitude) || Math.abs(profile.latitude) > 90 || !Number.isFinite(profile.longitude) || Math.abs(profile.longitude!) > 180)) throw new Error(`Invalid agent coordinates: ${id}`);
+  const minutes = profile.feedCheckIntervalMinutes;
+  if (minutes !== undefined && (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440)) throw new Error(`Invalid feed check interval: ${id}`);
+}
+function loadAgentProfiles(base: string, overlay: string) {
+  // The base is required; a missing optional overlay is equivalent to no overrides.
+  const ids = new Set([...readdirSync(base), ...(existsSync(overlay) ? readdirSync(overlay) : [])]);
+  return [...ids].sort().flatMap(id => {
+    const baseFile = join(base, id, 'profile.json');
+    const overlayFile = join(overlay, id, 'profile.json');
+    if (!existsSync(baseFile) && !existsSync(overlayFile)) return [];
+    const profile = {...(existsSync(baseFile) ? readProfile(baseFile) : {}), ...(existsSync(overlayFile) ? readProfile(overlayFile) : {})};
+    validate(id, profile);
+    const overlaySeed = join(overlay, id, 'memory.md');
+    const seed = existsSync(overlaySeed) ? overlaySeed : join(base, id, 'memory.md');
+    return [{id, profile, memory: existsSync(seed) ? readFileSync(seed, 'utf8').trim() : ''}];
+  });
+}
+
 export function syncAgents(directory = resolve(repoRoot, process.env.AGENTS_DIR || 'agents')) {
-  const profiles=readdirSync(directory).flatMap(id=>{const file=join(directory,id,'profile.json');return existsSync(file)?[{id,profile:JSON.parse(readFileSync(file,'utf8')) as Omit<AgentProfile,'id'>}]:[];});
+  const profiles=loadAgentProfiles(directory, join(dirname(path), 'agents'));
+  return transaction(() => {
   const reservedIntervals=new Set(profiles.map(({profile})=>profile.feedCheckIntervalMinutes).filter((minutes):minutes is number=>minutes!==undefined));
-  for (const {id,profile} of profiles) {
-    if (!/^[a-z0-9_-]+$/.test(id) || !profile.name || !profile.handle || !profile.persona) throw new Error(`Invalid agent profile: ${id}`);
-    if(profile.timeZone){try{new Intl.DateTimeFormat('en',{timeZone:profile.timeZone});}catch{throw new Error(`Invalid agent time zone: ${id}`);}}
-    if((profile.latitude===undefined)!==(profile.longitude===undefined)||profile.latitude!==undefined&&(!Number.isFinite(profile.latitude)||Math.abs(profile.latitude)>90||!Number.isFinite(profile.longitude)||Math.abs(profile.longitude!)>180))throw new Error(`Invalid agent coordinates: ${id}`);
+  getDb().prepare('UPDATE agents SET enabled=0').run();
+  for (const {id,profile,memory} of profiles) {
     getDb().prepare(`INSERT INTO agents(id,name,handle,persona,avatar_color,enabled,city,time_zone,latitude,longitude) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,handle=excluded.handle,persona=excluded.persona,avatar_color=excluded.avatar_color,enabled=excluded.enabled,city=excluded.city,time_zone=excluded.time_zone,latitude=excluded.latitude,longitude=excluded.longitude`).run(id, profile.name, profile.handle, profile.persona, profile.avatarColor || '#777', profile.enabled === false ? 0 : 1,profile.city||null,profile.timeZone||'UTC',profile.latitude??null,profile.longitude??null);
-    const seed = join(directory, id, 'memory.md');
-    getDb().prepare('INSERT OR IGNORE INTO memories(agent_id,content) VALUES(?,?)').run(id, existsSync(seed) ? readFileSync(seed, 'utf8').trim() : '');
+    getDb().prepare('INSERT OR IGNORE INTO memories(agent_id,content) VALUES(?,?)').run(id, memory);
     const configuredInterval = (profile as AgentProfile).feedCheckIntervalMinutes;
-    if (configuredInterval !== undefined && (!Number.isInteger(configuredInterval) || configuredInterval < 1 || configuredInterval > 1440)) throw new Error(`Invalid feed check interval: ${id}`);
     const current = getDb().prepare('SELECT interval_ms AS intervalMs FROM agent_feed_checks WHERE agent_id=?').get(id) as { intervalMs: number } | undefined;
     const usedIntervals = !current && configuredInterval === undefined ? (getDb().prepare('SELECT interval_ms AS intervalMs FROM agent_feed_checks').all() as {intervalMs:number}[]).map(row=>row.intervalMs) : [];
     let defaultMinutes=5;while(usedIntervals.includes(defaultMinutes*60_000)||reservedIntervals.has(defaultMinutes)) defaultMinutes++;
@@ -67,6 +96,13 @@ export function syncAgents(directory = resolve(repoRoot, process.env.AGENTS_DIR 
     if (!current) getDb().prepare('INSERT INTO agent_feed_checks(agent_id,interval_ms,next_check_at) VALUES(?,?,?)').run(id,intervalMs,Date.now()+intervalMs);
     else if (current.intervalMs !== intervalMs) getDb().prepare('UPDATE agent_feed_checks SET interval_ms=?,next_check_at=? WHERE agent_id=?').run(intervalMs,Date.now()+intervalMs,id);
   }
+  const stopped=getDb().prepare("SELECT id,browse_id AS browseId FROM jobs WHERE status IN ('pending','running') AND agent_id IN (SELECT id FROM agents WHERE enabled=0)").all() as {id:number;browseId:number|null}[];
+  for(const job of stopped){
+    getDb().prepare("UPDATE jobs SET status='done',outcome='stopped',completed_at=?,error=NULL WHERE id=?").run(Date.now(),job.id);
+    getDb().prepare("UPDATE job_attempts SET status='stopped',finished_at=? WHERE job_id=? AND status='running'").run(Date.now(),job.id);
+    if(job.browseId) finishBrowseIfDone(job.browseId);
+  }
+  });
 }
 type BrowseCandidate={id:number;latestCommentId:number;latestExternalCommentId:number;joinedCount:number;notificationStatus:string|null;notificationOutcome:string|null;priorFeedCount:number;outstandingCount:number;lastSeenCommentId:number|null;following:number|null};
 function browseCandidates(agentId:string) {
@@ -155,7 +191,7 @@ export function createOwnerReply(parentId: number, text: string, imageIds: strin
   attachImages(imageIds, parent.postId, id);
   const mentions=mentionedAgents(text,getAgents());
   const targets=new Set([parent.agentId,...mentions.keys()]);
-  for(const agentId of targets){const memory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(agentId) as any)?.content||'';const mention=mentions.get(agentId);
+  for(const agentId of targets){if(!getDb().prepare('SELECT 1 FROM agents WHERE id=? AND enabled=1').get(agentId))continue;const memory=(getDb().prepare('SELECT content FROM memories WHERE agent_id=?').get(agentId) as any)?.content||'';const mention=mentions.get(agentId);
     getDb().prepare('INSERT INTO jobs(kind,post_id,source_comment_id,agent_id,due_at,mock_miss,memory_before,memory_after,source,mentioned_handle) VALUES(?,?,?,?,?,?,?,?,?,?)').run('reply',parent.postId,id,agentId,mention?Date.now():Date.now()+delayMs('reply'),0,memory,memory,mention?'mention':'notification',mention?.handle??null);
   }
   for(const agentId of mentions.keys()) reactivateThread(agentId,parent.postId);
@@ -163,7 +199,7 @@ export function createOwnerReply(parentId: number, text: string, imageIds: strin
 }); }
 export type Job = { id: number; kind: 'post'|'reply'; source: 'notification'|'feed'|'mention'|'browse'|'peer'; postId: number; sourceCommentId: number|null; agentId: string; attempts: number; mockMiss: boolean; mentionedHandle:string|null; browseId:number|null; browseReason:string|null; seenCommentId:number };
 export function claimJob(): Job | null { return transaction(() => {
-  const job = getDb().prepare(`SELECT j.id,j.kind,j.source,j.post_id AS postId,j.source_comment_id AS sourceCommentId,j.agent_id AS agentId,j.attempts,j.mock_miss AS mockMiss,j.mentioned_handle AS mentionedHandle,j.browse_id AS browseId,j.browse_reason AS browseReason,(SELECT COALESCE(MAX(c.id),0) FROM comments c WHERE c.post_id=j.post_id) AS seenCommentId FROM jobs j WHERE j.status='pending' AND j.due_at<=? ORDER BY j.due_at,j.id LIMIT 1`).get(Date.now()) as unknown as Job | undefined;
+  const job = getDb().prepare(`SELECT j.id,j.kind,j.source,j.post_id AS postId,j.source_comment_id AS sourceCommentId,j.agent_id AS agentId,j.attempts,j.mock_miss AS mockMiss,j.mentioned_handle AS mentionedHandle,j.browse_id AS browseId,j.browse_reason AS browseReason,(SELECT COALESCE(MAX(c.id),0) FROM comments c WHERE c.post_id=j.post_id) AS seenCommentId FROM jobs j JOIN agents a ON a.id=j.agent_id WHERE a.enabled=1 AND j.status='pending' AND j.due_at<=? ORDER BY j.due_at,j.id LIMIT 1`).get(Date.now()) as unknown as Job | undefined;
   if (!job) return null;
   getDb().prepare("UPDATE jobs SET status='running',attempts=attempts+1 WHERE id=?").run(job.id);
   getDb().prepare(`INSERT INTO job_attempts(job_id,started_at,status) VALUES(?,?,'running')`).run(job.id,Date.now());
