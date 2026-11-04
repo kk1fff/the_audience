@@ -15,6 +15,8 @@ Open http://localhost:3000. The Docker port is published on all host interfaces.
 
 ## Configuration
 
+For coding-agent iteration on uncommitted changes, use the [Docker development workflow](local/README.md#docker-working-tree-iteration). It runs on port 3001 with isolated data, automatically reloads source edits, and does not require a commit or image rebuild for each edit.
+
 Each folder in `agents/` is a stable agent ID. Its `profile.json` defines `name`, `handle`, `persona`, `avatarColor`, and `enabled`. Built-in agents also have `city`, IANA `timeZone`, `latitude`, and `longitude` for local background; custom agents can omit these and weather will be unavailable. Optional `memory.md` seeds memory on first run only. The worker reloads profiles at startup; later memories are kept separately in `data/social.sqlite`. All persistent runtime data is under `data/`, the single Docker bind mount.
 
 ### Persistent agent overrides
