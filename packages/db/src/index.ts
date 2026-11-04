@@ -80,8 +80,11 @@ function loadAgentProfiles(base: string, overlay: string) {
   });
 }
 
+export function getAgentConfiguration(directory = resolve(repoRoot, process.env.AGENTS_DIR || 'agents')) {
+  return loadAgentProfiles(directory, join(dirname(path), 'agents'));
+}
 export function syncAgents(directory = resolve(repoRoot, process.env.AGENTS_DIR || 'agents')) {
-  const profiles=loadAgentProfiles(directory, join(dirname(path), 'agents'));
+  const profiles=getAgentConfiguration(directory);
   return transaction(() => {
   const reservedIntervals=new Set(profiles.map(({profile})=>profile.feedCheckIntervalMinutes).filter((minutes):minutes is number=>minutes!==undefined));
   getDb().prepare('UPDATE agents SET enabled=0').run();

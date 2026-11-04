@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tune social agents"
+  short_description: "Tune distinct personalities and export runnable agents"
+  default_prompt: "Use $tune-social-agents to help define my social cast, connect my LLM, and export a tested local_data configuration."

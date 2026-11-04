@@ -1,0 +1,37 @@
+# Standalone fixed-image template. The skill helper renders a pinned session copy.
+name: audience-tuning
+services:
+  web:
+    image: ${TUNING_IMAGE:?Select a tested local image ID}
+    pull_policy: never
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    init: true
+    working_dir: /app/apps/web
+    command: node node_modules/next/dist/bin/next start --hostname 0.0.0.0
+    ports:
+      - "127.0.0.1:${TUNING_PORT:-3002}:3000"
+    environment:
+      DATABASE_PATH: /app/data/social.sqlite
+      AGENTS_DIR: /app/agents
+    volumes:
+      - ${TUNING_DATA:?Select isolated trial data}:/app/data
+  worker:
+    image: ${TUNING_IMAGE:?Select a tested local image ID}
+    pull_policy: never
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    init: true
+    working_dir: /app/apps/worker
+    command: node --import tsx src/index.ts
+    env_file:
+      - path: ${TUNING_ENV_FILE:?Select a private LLM environment file}
+        format: raw
+    environment:
+      DATABASE_PATH: /app/data/social.sqlite
+      AGENTS_DIR: /app/agents
+      BACKGROUND_PYTHON: /opt/ddgs/bin/python
+      TUNING_DEADLINE: ${TUNING_DEADLINE:?Set an experiment deadline}
+      TUNING_FAILURE_LIMIT: "3"
+    volumes:
+      - ${TUNING_DATA:?Select isolated trial data}:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

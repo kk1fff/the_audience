@@ -2,6 +2,12 @@
 
 This repository is [kk1fff/the_audience](https://github.com/kk1fff/the_audience). The lead engineer owns the workflow. The team roles are oncall engineer, engineer, UI designer, independent engineer reviewer, and user tester. Roles may share one GitHub account and one local workspace; identify the role in handoffs and review comments rather than implying separate GitHub identities.
 
+## Private behavior tuning
+
+For requests to tune the social agents' personalities or behavior, use the repository skill at [.agents/skills/tune-social-agents/SKILL.md](.agents/skills/tune-social-agents/SKILL.md). Prefer distinct individuals, run bounded trials against a fixed production image with a real LLM, and edit only behavioral overlays and intentional seed memories during experiments. Gather missing connection details and a budget; keep credentials and personal experiments private. Export accepted settings as clean `local_data/` plus a launch command.
+
+Private tuning sessions do not enter the issue-monitoring/user-test loop below and do not automatically create issues, publish transcripts, or commit configurations. Report application limitations to the user separately. Changes to the skill, helper scripts, or application runtime remain engineering work and follow the issue, review, merge, and iteration-log gates below.
+
 ## Operating loop
 
 1. During an active monitoring session, poll open GitHub issues and pull requests until the user asks to stop. Keep the user informed. A chat turn cannot guarantee unattended monitoring after it ends; state that limit accurately.
