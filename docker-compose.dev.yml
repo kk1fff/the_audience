@@ -1,0 +1,51 @@
+name: audience-dev
+
+x-development: &development
+  build:
+    context: .
+    target: development
+    args:
+      LOCAL_UID: ${LOCAL_UID:-1000}
+      LOCAL_GID: ${LOCAL_GID:-1000}
+  user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+  init: true
+  volumes:
+    - ./apps/web/app:/app/apps/web/app:ro
+    - ./apps/web/components:/app/apps/web/components:ro
+    - ./apps/web/lib:/app/apps/web/lib:ro
+    - ./apps/web/next.config.mjs:/app/apps/web/next.config.mjs:ro
+    - ./apps/worker/src:/app/apps/worker/src:ro
+    - ./packages/core/src:/app/packages/core/src:ro
+    - ./packages/db/src:/app/packages/db/src:ro
+    - ./packages/llm/src:/app/packages/llm/src:ro
+    - ./agents:/app/agents:ro
+    - ./data/dev:/app/data
+
+services:
+  web:
+    <<: *development
+    working_dir: /app/apps/web
+    command: node node_modules/next/dist/bin/next dev --hostname 0.0.0.0
+    ports:
+      - "127.0.0.1:${DEV_PORT:-3001}:3000"
+    environment:
+      DATABASE_PATH: /app/data/social.sqlite
+      AGENTS_DIR: /app/agents
+  worker:
+    <<: *development
+    working_dir: /app/apps/worker
+    command: node node_modules/tsx/dist/cli.mjs watch --include /app/packages/**/src/**/*.ts src/index.ts
+    environment:
+      DATABASE_PATH: /app/data/social.sqlite
+      AGENTS_DIR: /app/agents
+      LLM_PROVIDER: ${DEV_LLM_PROVIDER:-mock}
+      LLM_BASE_URL: ${DEV_LLM_BASE_URL:-http://host.docker.internal:11434}
+      LLM_MODEL: ${DEV_LLM_MODEL:-llama3.2}
+      LLM_THINK: ${DEV_LLM_THINK:-}
+      LLM_API_KEY: ${DEV_LLM_API_KEY:-}
+      EXA_API_KEY: ${DEV_EXA_API_KEY:-}
+      BACKGROUND_PYTHON: /opt/ddgs/bin/python
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      - web

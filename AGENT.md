@@ -12,6 +12,10 @@ This repository is [kk1fff/the_audience](https://github.com/kk1fff/the_audience)
 
 ## Design and implementation gates
 
+Use the Docker development stack for working-tree iteration: create `data/dev/` as the host user, then run `docker compose -f docker-compose.dev.yml up -d --build` and open `http://localhost:3001`. It mounts current source files, including uncommitted edits; web changes reload in Next.js development mode and worker/shared-package TypeScript changes restart the worker. Edit, inspect logs, test in the running app, and repeat without committing, merging, or rebuilding for each source edit. Keep one issue active and preserve the design and review gates below. Commit the reviewable result when ready for a PR.
+
+The development stack uses a separate Compose project and `data/dev/`, defaults to mock models, and leaves the production stack on port 3000 alone. Configure development models with `DEV_LLM_*`; restart the worker after agent profile/memory seed edits. Dependency, package manifest, TypeScript configuration, or Dockerfile changes require `docker compose -f docker-compose.dev.yml up -d --build`. Run the normal tests and production build before review; after merge, use the production build for final verification. See `local/README.md` for commands and the exact mounted paths.
+
 1. For any UI change, the UI designer updates a mock or other design reference **before** platform code changes. The lead reviews and approves the mock, then hands it to engineering.
 2. The engineer works from an updated `main` on an issue branch, implements the smallest complete change, adds meaningful verification for the risk, runs tests and build, and opens a PR linked to the issue. Do not merge or close the issue from the engineer role.
 3. Opening a PR triggers an independent engineer review. The reviewer checks behavior, design requirements, tests, and regressions, records concrete findings in the PR, and hands blockers back to the engineer. Repeat implementation and review until blockers are resolved.
