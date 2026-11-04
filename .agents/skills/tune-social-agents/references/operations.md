@@ -19,11 +19,12 @@ python3 "$TUNE" probe --session .tuning/my-cast
 python3 "$TUNE" trial --session .tuning/my-cast --name baseline
 python3 "$TUNE" post --session .tuning/my-cast --text '@aya_wanders I finally finished my first painting.'
 python3 "$TUNE" observe --session .tuning/my-cast --post-id 1 --timeout 360
-python3 "$TUNE" reply --session .tuning/my-cast --parent-id 1 --text 'What caught your eye?'
+# Read /api/posts/1 first; use an actual agent comment ID as parent-id.
+python3 "$TUNE" reply --session .tuning/my-cast --parent-id COMMENT_ID --text 'What caught your eye?'
 python3 "$TUNE" collect --session .tuning/my-cast
 ```
 
-Probe makes one small real-model request and validates the decision schema. The session clock starts at probe (or first mock trial). A fresh trial stops the previous stack, saves available results, creates a new data directory from configuration only, and launches the same image. Baseline does not count toward the candidate limit; later automated trials do. Each trial records its effective configuration, prompt hash, image and public model settings. Candidate changes require a new trial, not a restart over contaminated memories. `reload` only restarts an unchanged trial; `start` resumes an unchanged trial within its deadline.
+Probe makes one small real-model request and validates the decision schema. The session clock starts at probe (or first mock trial). Wait for active observation/collection commands to finish before switching trials. A fresh trial stops the previous stack, saves available results, creates a new data directory from configuration only, and launches the same image. Baseline does not count toward the candidate limit; later automated trials do. Each trial records its effective configuration, prompt hash, image and public model settings. Candidate changes require a new trial, not a restart over contaminated memories. `reload` only restarts an unchanged trial; `start` resumes an unchanged trial within its deadline.
 
 ```sh
 # After editing the candidate prompt/persona:
@@ -55,9 +56,13 @@ Write the session's report.md and obtain user acceptance. Ensure candidate match
 ```sh
 python3 "$TUNE" export --session .tuning/my-cast --output ./tuning-output --accepted
 cd tuning-output
-docker compose -f compose.local.yaml up -d
+# Run the exact project-pinned command printed by export (also saved in RUN.md).
 ```
 
-The generated Compose file loads local_runtime.env itself using raw parsing; do not also pass it as a Compose interpolation --env-file. The output root must not exist. It contains `local_data/` (prompts and profiles/seeds only), mode-0600 local_runtime.env, compose.local.yaml, manifest.json, report.md and RUN.md. Export validates a disposable copy with the pinned production image and starts the web without a live worker/model call. The delivered folder remains free of database/uploads. Default final port is 3000; use export `--port` if already occupied. The generated Compose file has no tuning deadline, source mounts or build section. It uses a local image ID with pull_policy:never; use Docker save/load to move the same image to another machine, and adjust the private endpoint if needed.
+The generated command pins its unique project with `-p`; keep that option to avoid inherited COMPOSE_PROJECT_NAME collisions. The generated Compose file loads local_runtime.env itself using raw parsing; do not also pass it as a Compose interpolation --env-file. The output root must not exist. It contains `local_data/` (prompts and profiles/seeds only), mode-0600 local_runtime.env, compose.local.yaml, manifest.json, report.md and RUN.md. Export validates a disposable copy with the pinned production image and starts the web without a live worker/model call. The delivered folder remains free of database/uploads. Default final port is 3000; use export `--port` if already occupied. The generated Compose file has no tuning deadline, source mounts or build section. It uses a local image ID with pull_policy:never; use Docker save/load to move the same image to another machine, and adjust the private endpoint if needed.
 
-Workflow tests may initialize with `--allow-mock` and `LLM_PROVIDER=mock`; exported manifests label these as workflow tests. Never describe their responses as real-model evidence.
+Workflow tests may initialize with `--allow-mock` and `LLM_PROVIDER=mock`; exported manifests label these as workflow tests. For these mock-only tests, skip `probe`: init records workflow-test mode, and probe intentionally requires a real provider. Never describe their responses as real-model evidence.
+
+## Maintenance checks
+
+Run `python3 .agents/skills/tune-social-agents/scripts/test_tune.py` for helper unit tests. After building the production tuning image, `python3 .agents/skills/tune-social-agents/scripts/test_runtime.py --image audience:tuning --port 3014` checks provider probing, worker failure limits and deadlines against a local HTTP fixture; it does not contact a real model. Choose an unused port.

@@ -57,6 +57,14 @@ class TuningTests(unittest.TestCase):
         self.assertNotIn('TUNING_DEADLINE',export['services']['worker']['environment'])
         self.assertEqual(export['services']['worker']['env_file'][0]['format'],'raw')
 
+    def test_compose_project_cannot_be_overridden_by_inherited_environment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);tune.write_json(root/'session.json',{'project':'owned-session'})
+            with patch.dict(os.environ,{'COMPOSE_PROJECT_NAME':'unrelated-project'}),patch.object(tune,'run',return_value='') as execute:
+                tune.compose(root,'down')
+            command=execute.call_args.args[0]
+            self.assertEqual(command[:4],['docker','compose','-p','owned-session'])
+
     def test_activity_paginates_and_detects_broken_cursors(self):
         with patch.object(tune,'api',side_effect=[{'items':[{'id':2}],'nextCursor':2},{'items':[{'id':1}],'nextCursor':None}]) as call:
             self.assertEqual(tune.activity(None,{}),[{'id':2},{'id':1}])
@@ -96,8 +104,12 @@ class TuningTests(unittest.TestCase):
             (root/'report.md').write_text('Aya is curious; Leo is concise. Workflow test, no behavioral claim.')
             state={'current':'baseline','image':'sha256:fake','model':{'LLM_PROVIDER':'mock'},'workflow_test':True}
             args=argparse.Namespace(accepted=True,output=Path(tmp)/'export',port=3000)
-            with patch.object(tune,'candidate',return_value=CONFIG),patch.object(tune,'run',return_value=''),contextlib.redirect_stdout(io.StringIO()):
+            with patch.object(tune,'candidate',return_value=CONFIG),patch.object(tune,'run',return_value='') as execute,contextlib.redirect_stdout(io.StringIO()):
                 tune.export(args,root,state)
+                for call in execute.call_args_list:
+                    self.assertEqual(call.args[0][:3],['docker','compose','-p'])
+                project=json.loads((args.output/'compose.local.yaml').read_text())['name']
+                self.assertIn(f'docker compose -p {project}',(args.output/'RUN.md').read_text())
                 self.assertFalse((args.output/'local_data/social.sqlite').exists())
                 self.assertFalse((args.output/'local_data/local_runtime.env').exists())
                 self.assertNotIn('secret-value',(args.output/'manifest.json').read_text())

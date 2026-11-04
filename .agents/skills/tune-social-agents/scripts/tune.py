@@ -120,7 +120,8 @@ def save(root, state):
 
 
 def compose(root, *args):
-    return run(['docker','compose','-f',root/'compose.json',*args], timeout=120)
+    project=json.loads((root/'session.json').read_text())['project']
+    return run(['docker','compose','-p',project,'-f',root/'compose.json',*args], timeout=120)
 
 
 def api(root, state, route, body=None):
@@ -289,7 +290,9 @@ def export(args, root, state):
     try:
         materialize(config,stage/'local_data')
         shutil.copyfile(root/'private.env',stage/'local_runtime.env');(stage/'local_runtime.env').chmod(0o600)
-        write_json(stage/'compose.local.yaml',compose_document(state['image'],'./local_data','./local_runtime.env',args.port,'audience-local-'+uuid.uuid4().hex[:8]))
+        project='audience-local-'+uuid.uuid4().hex[:8]
+        launch=f'docker compose -p {project} -f compose.local.yaml up -d'
+        write_json(stage/'compose.local.yaml',compose_document(state['image'],'./local_data','./local_runtime.env',args.port,project))
         # Smoke against a disposable copy, never pollute the delivered folder with runtime state.
         with tempfile.TemporaryDirectory(prefix='audience-export-check-') as tmp:
             check=Path(tmp);shutil.copytree(stage/'local_data',check/'data')
@@ -297,7 +300,7 @@ def export(args, root, state):
             doc['services']['web'].pop('ports')
             doc['services'].pop('worker')  # No live LLM spend during export smoke.
             write_json(check/'compose.json',doc)
-            cmd=['docker','compose','-f',check/'compose.json']
+            cmd=['docker','compose','-p',doc['name'],'-f',check/'compose.json']
             try:
                 run(cmd+['up','-d'],timeout=120)
                 run(cmd+['exec','-T','-w','/app/apps/worker','web','node','--import','tsx','--input-type=module','-e',"import {syncAgents} from '@social/db'; import {loadBehaviorPrompt} from '@social/llm'; loadBehaviorPrompt();syncAgents();"],timeout=60)
@@ -314,9 +317,9 @@ def export(args, root, state):
             if key in ('LLM_API_KEY','EXA_API_KEY') and value and value in report_text:
                 raise ValueError('Report contains a configured secret; remove it before export')
         shutil.copyfile(report,stage/'report.md')
-        (stage/'RUN.md').write_text('From this directory:\n\n```sh\ndocker compose -f compose.local.yaml up -d\n```\n\nOpen http://localhost:'+str(args.port)+'. Keep local_runtime.env private. The image is pinned by ID and must exist locally; on another machine load that same image and provide a reachable LLM endpoint.\n')
+        (stage/'RUN.md').write_text('From this directory:\n\n```sh\n'+launch+'\n```\n\nOpen http://localhost:'+str(args.port)+'. Keep local_runtime.env private. The image is pinned by ID and must exist locally; on another machine load that same image and provide a reachable LLM endpoint.\n')
         stage.rename(target)
-        print(f'Export: {target}\ncd {target}\ndocker compose -f compose.local.yaml up -d')
+        print(f'Export: {target}\ncd {target}\n{launch}')
     finally:
         if stage.exists():
             shutil.rmtree(stage)  # Only the temporary directory created above.

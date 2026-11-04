@@ -24,7 +24,7 @@ Read [evaluation](references/evaluation.md) when designing scenarios and compari
 3. State a focused hypothesis. If only one person needs adjustment, edit that person's `persona` or intentional seed memory rather than shared guidance. Shared guidance lives in `candidate/prompts/behavior.md`.
 4. Create a fresh named trial from the candidate. Never compare against a database already shaped by a previous candidate. Keep shared scenarios and initial memories equivalent; only the intended experimental variable changes.
 5. Evaluate transcripts against the briefs and goal. Keep or revert the candidate. Repeat promising comparisons within the remaining trial/time budget; record nondeterminism and changing external background as limitations.
-6. Test the final cast on reserved scenarios. Offer a separate `--manual` trial for the user's browser conversations. Do not mix these messages into controlled comparisons.
+6. Test the final cast on reserved scenarios. Offer a separate `--manual` trial for the user's browser conversations; the user may accept the evidence without taking that optional trial. Do not mix these messages into controlled comparisons.
 
 Different people behaving differently is preferable. Preserve within-person consistency and between-person differentiation; do not optimize everyone into one friendly, inquisitive, verbose, agreeable voice. Different names and stock phrases are not sufficient evidence. Legitimate silence, agreement, humor, restraint, and disagreement can all fit an individual. Do not manufacture conflict merely to increase diversity.
 
