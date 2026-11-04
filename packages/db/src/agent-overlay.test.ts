@@ -30,7 +30,7 @@ test('persistent overlays merge atomically, preserve history, and stop disabled 
   const stable=snapshot();store.syncAgents();assert.equal(snapshot(),stable);
   // Every effective profile is validated before any database mutation.
   for(const invalid of [{enabled:'false'},{feedCheckIntervalMinutes:0},{latitude:500,longitude:0},{timeZone:'invalid/zone'},null,[]]) {
-    put(overlay,'z-invalid',invalid);assert.throws(()=>store.syncAgents(),/Invalid.*z-invalid/);assert.equal(snapshot(),stable);
+    put(overlay,'z-invalid',invalid && !Array.isArray(invalid) ? {...profile('z-invalid'),...invalid} : invalid);assert.throws(()=>store.syncAgents(),/Invalid.*z-invalid/);assert.equal(snapshot(),stable);
   }
   writeFileSync(join(overlay,'z-invalid','profile.json'),'{');assert.throws(()=>store.syncAgents(),/z-invalid/);assert.equal(snapshot(),stable);
   rmSync(join(overlay,'z-invalid'),{recursive:true});
