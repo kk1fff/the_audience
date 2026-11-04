@@ -6,3 +6,10 @@ local/*.env
 local/*.local.*
 data/*
 !data/.gitkeep
+
+.tuning/
+local_data/
+tuning-output/
+local_runtime.env
+compose.local.yaml
+**/__pycache__/
